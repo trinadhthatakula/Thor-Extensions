@@ -42,7 +42,7 @@ import java.util.Calendar
 class AutomationCluster : AutomationExtension {
     override val name: String = "Thor Cluster Automator"
     override val description: String = "Automate freezing and unfreezing of custom app clusters."
-    override val version: String = "1.00.0"
+    override val version: String = BuildConfig.VERSION_NAME
     override val author: String = "Thor Team"
 
     private var currentScreen by mutableStateOf(AutoScreen.CLUSTERS_LIST)
