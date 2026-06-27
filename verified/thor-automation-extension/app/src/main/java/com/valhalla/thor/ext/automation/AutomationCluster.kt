@@ -149,14 +149,19 @@ class AutomationCluster : AutomationExtension {
         var clustersList by remember { mutableStateOf<List<AppCluster>>(emptyList()) }
 
         val loadClusters = {
-            val clustersJson = dataStore.getString("saved_clusters")
-            clustersList = if (clustersJson.isNullOrEmpty()) {
-                emptyList()
-            } else {
-                try {
-                    Json.decodeFromString<List<AppCluster>>(clustersJson)
-                } catch (e: Exception) {
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                val clustersJson = dataStore.getString("saved_clusters")
+                val list = if (clustersJson.isNullOrEmpty()) {
                     emptyList()
+                } else {
+                    try {
+                        Json.decodeFromString<List<AppCluster>>(clustersJson)
+                    } catch (e: Exception) {
+                        emptyList()
+                    }
+                }
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    clustersList = list
                 }
             }
         }
@@ -215,17 +220,25 @@ class AutomationCluster : AutomationExtension {
                             currentScreen = AutoScreen.CREATE_EDIT_CLUSTER
                         },
                         onDeleteCluster = { name ->
-                            val updated = clustersList.filter { it.name != name }
-                            dataStore.saveString("saved_clusters", Json.encodeToString(updated))
-                            loadClusters()
-                            currentScreen = AutoScreen.CLUSTERS_LIST
+                            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                val updated = clustersList.filter { it.name != name }
+                                dataStore.saveString("saved_clusters", Json.encodeToString(updated))
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    loadClusters()
+                                    currentScreen = AutoScreen.CLUSTERS_LIST
+                                }
+                            }
                         },
                         onScheduleToggle = { name, scheduleEnabled ->
-                            val updated = clustersList.map {
-                                if (it.name == name) it.copy(isScheduled = scheduleEnabled) else it
+                            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                val updated = clustersList.map {
+                                    if (it.name == name) it.copy(isScheduled = scheduleEnabled) else it
+                                }
+                                dataStore.saveString("saved_clusters", Json.encodeToString(updated))
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    loadClusters()
+                                }
                             }
-                            dataStore.saveString("saved_clusters", Json.encodeToString(updated))
-                            loadClusters()
                         }
                     )
                 } else {
@@ -245,19 +258,23 @@ class AutomationCluster : AutomationExtension {
                         }
                     },
                     onSave = { name, packages ->
-                        val updated = clustersList.toMutableList()
-                        val idx = updated.indexOfFirst { it.name == name }
-                        val isSched = editingCluster?.isScheduled ?: false
-                        val newCluster = AppCluster(name, packages, isSched)
-                        if (idx >= 0) {
-                            updated[idx] = newCluster
-                        } else {
-                            updated.add(newCluster)
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            val updated = clustersList.toMutableList()
+                            val idx = updated.indexOfFirst { it.name == name }
+                            val isSched = editingCluster?.isScheduled ?: false
+                            val newCluster = AppCluster(name, packages, isSched)
+                            if (idx >= 0) {
+                                updated[idx] = newCluster
+                            } else {
+                                updated.add(newCluster)
+                            }
+                            dataStore.saveString("saved_clusters", Json.encodeToString(updated))
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                loadClusters()
+                                selectedClusterName = name
+                                currentScreen = AutoScreen.CLUSTER_DETAILS
+                            }
                         }
-                        dataStore.saveString("saved_clusters", Json.encodeToString(updated))
-                        loadClusters()
-                        selectedClusterName = name
-                        currentScreen = AutoScreen.CLUSTER_DETAILS
                     }
                 )
             }
