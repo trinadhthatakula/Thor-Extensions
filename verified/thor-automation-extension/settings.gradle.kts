@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "thor-extension-template"
+rootProject.name = "thor-automation-extension"
 include(":app")
