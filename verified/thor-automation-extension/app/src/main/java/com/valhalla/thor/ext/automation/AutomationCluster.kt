@@ -456,6 +456,7 @@ fun ClusterDetailsScreen(
     val packageList = cluster.packages
     var isScheduled by remember(cluster) { mutableStateOf(cluster.isScheduled) }
     val scope = rememberCoroutineScope()
+    var refreshTrigger by remember { mutableStateOf(0) }
 
     Scaffold(
         topBar = {
@@ -512,6 +513,7 @@ fun ClusterDetailsScreen(
                             }
                             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                                 Toast.makeText(context, "Cluster frozen", Toast.LENGTH_SHORT).show()
+                                refreshTrigger++
                             }
                         }
                     },
@@ -538,6 +540,7 @@ fun ClusterDetailsScreen(
                             }
                             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                                 Toast.makeText(context, "Cluster unfrozen", Toast.LENGTH_SHORT).show()
+                                refreshTrigger++
                             }
                         }
                     },
@@ -700,7 +703,7 @@ fun ClusterDetailsScreen(
                     var appLabel by remember(pkg) { mutableStateOf(pkg) }
                     var isFrozen by remember(pkg) { mutableStateOf(false) }
 
-                    LaunchedEffect(pkg) {
+                    LaunchedEffect(pkg, refreshTrigger) {
                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             try {
                                 val info = pm.getApplicationInfo(pkg, 0)
@@ -719,6 +722,9 @@ fun ClusterDetailsScreen(
                             }
                         }
                     }
+
+                    val saturationMatrix = remember { androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0f) } }
+                    val grayscaleFilter = remember(saturationMatrix) { androidx.compose.ui.graphics.ColorFilter.colorMatrix(saturationMatrix) }
 
                     Card(
                         shape = RoundedCornerShape(16.dp),
@@ -749,7 +755,8 @@ fun ClusterDetailsScreen(
                             ) {
                                 AppIcon(
                                     packageName = pkg,
-                                    modifier = Modifier.fillMaxSize().padding(4.dp)
+                                    modifier = Modifier.fillMaxSize().padding(4.dp),
+                                    colorFilter = if (isFrozen) grayscaleFilter else null
                                 )
                             }
 
