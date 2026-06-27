@@ -30,7 +30,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -43,7 +42,7 @@ import java.util.Calendar
 class AutomationCluster : AutomationExtension {
     override val name: String = "Thor Cluster Automator"
     override val description: String = "Automate freezing and unfreezing of custom app clusters."
-    override val version: String = "1.0.0"
+    override val version: String = "1.00.0"
     override val author: String = "Thor Team"
 
     private var currentScreen by mutableStateOf(AutoScreen.CLUSTERS_LIST)
@@ -135,7 +134,7 @@ class AutomationCluster : AutomationExtension {
         val extContext = remember {
             try {
                 context.createPackageContext("com.valhalla.thor.ext.automation", Context.CONTEXT_IGNORE_SECURITY)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 context
             }
         }
@@ -249,8 +248,9 @@ fun ClustersListScreen(
                     Text("App Clusters")
                 },
                 subtitle = {
-                    Text("Manage and trigger groups of apps collectively.")
-                }
+                    Text("Manage/trigger groups of apps collectively.")
+                },
+                windowInsets = WindowInsets(0,0,0,0)
             )
         },
         floatingActionButton = {
@@ -262,7 +262,8 @@ fun ClustersListScreen(
             ) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = "Add Cluster")
             }
-        }
+        },
+        contentWindowInsets = WindowInsets(0,0,0,0)
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -272,12 +273,6 @@ fun ClustersListScreen(
                 .padding(horizontal = 24.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Manage and trigger groups of apps collectively.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(24.dp))
 
             if (clustersList.isEmpty()) {
                 Box(

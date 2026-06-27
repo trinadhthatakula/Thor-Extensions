@@ -19,8 +19,8 @@ android {
         applicationId = "com.valhalla.thor.ext.automation"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 1000
+        versionName = "1.00.0"
     }
 
     buildTypes {
