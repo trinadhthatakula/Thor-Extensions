@@ -55,4 +55,5 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.kotlinx.serialization.json)
+    implementation("io.coil-kt.coil3:coil-compose:3.5.0")
 }
