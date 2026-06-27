@@ -23,26 +23,36 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.valhalla.thor.extension.api.AutomationExtension
+import com.valhalla.thor.extension.api.ExtensionDataStore
 import com.valhalla.thor.extension.api.ShellExecutor
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import java.util.Calendar
+
+@Serializable
+data class AppCluster(
+    val name: String,
+    val packages: List<String>,
+    val isScheduled: Boolean = false
+)
 
 class AutomationCluster : AutomationExtension {
     override val name: String = "Thor Cluster Automator"
     override val description: String = "Automate freezing and unfreezing of custom app clusters."
-    override val version: String = BuildConfig.VERSION_NAME
+    override val version: String = "1.0.0"
     override val author: String = "Thor Team"
 
     private var currentScreen by mutableStateOf(AutoScreen.CLUSTERS_LIST)
@@ -50,6 +60,7 @@ class AutomationCluster : AutomationExtension {
     private var editingClusterName by mutableStateOf<String?>(null)
 
     override fun onBackPressed(): Boolean {
+        android.util.Log.d("AutomationCluster", "onBackPressed! currentScreen = $currentScreen")
         return when (currentScreen) {
             AutoScreen.CREATE_EDIT_CLUSTER -> {
                 currentScreen = if (editingClusterName != null) {
@@ -69,24 +80,20 @@ class AutomationCluster : AutomationExtension {
         }
     }
 
-    override fun onTrigger(context: Context, eventType: String, shellExecutor: ShellExecutor) {
+    override fun onTrigger(context: Context, eventType: String, shellExecutor: ShellExecutor, dataStore: ExtensionDataStore) {
         val parts = eventType.split(":")
         if (parts.size < 2) return
         val action = parts[0]
         val clusterName = parts[1]
 
-        val extContext = try {
-            context.createPackageContext("com.valhalla.thor.ext.automation", Context.CONTEXT_IGNORE_SECURITY)
+        val clustersJson = dataStore.getString("saved_clusters") ?: return
+        val clustersList = try {
+            Json.decodeFromString<List<AppCluster>>(clustersJson)
         } catch (e: Exception) {
-            e.printStackTrace()
-            return
+            emptyList()
         }
-
-        val prefs = extContext.getSharedPreferences("cluster_prefs", Context.MODE_PRIVATE)
-        val packagesString = prefs.getString("cluster:$clusterName", "") ?: ""
-        if (packagesString.isEmpty()) return
-
-        val packageList = packagesString.split(",")
+        val cluster = clustersList.firstOrNull { it.name == clusterName } ?: return
+        val packageList = cluster.packages
 
         when (action) {
             "freeze" -> {
@@ -122,7 +129,7 @@ class AutomationCluster : AutomationExtension {
     }
 
     @Composable
-    override fun ConfigurationScreen(shellExecutor: ShellExecutor, onBack: () -> Unit) {
+    override fun ConfigurationScreen(shellExecutor: ShellExecutor, dataStore: ExtensionDataStore, onBack: () -> Unit) {
         val context = LocalContext.current
 
         LaunchedEffect(Unit) {
@@ -131,21 +138,23 @@ class AutomationCluster : AutomationExtension {
             editingClusterName = null
         }
 
-        val extContext = remember {
-            try {
-                context.createPackageContext("com.valhalla.thor.ext.automation", Context.CONTEXT_IGNORE_SECURITY)
-            } catch (_: Exception) {
-                context
+        var clustersList by remember { mutableStateOf<List<AppCluster>>(emptyList()) }
+
+        val loadClusters = {
+            val clustersJson = dataStore.getString("saved_clusters")
+            clustersList = if (clustersJson.isNullOrEmpty()) {
+                emptyList()
+            } else {
+                try {
+                    Json.decodeFromString<List<AppCluster>>(clustersJson)
+                } catch (e: Exception) {
+                    emptyList()
+                }
             }
         }
-        val prefs = remember(extContext) { extContext.getSharedPreferences("cluster_prefs", Context.MODE_PRIVATE) }
 
-        var clustersList by remember {
-            mutableStateOf(prefs.getStringSet("cluster_names", emptySet())?.toList() ?: emptyList())
-        }
-
-        val refreshClusters = {
-            clustersList = prefs.getStringSet("cluster_names", emptySet())?.toList() ?: emptyList()
+        LaunchedEffect(dataStore) {
+            loadClusters()
         }
 
         when (currentScreen) {
@@ -163,38 +172,55 @@ class AutomationCluster : AutomationExtension {
                         editingClusterName = null
                         currentScreen = AutoScreen.CREATE_EDIT_CLUSTER
                     },
-                    prefs = prefs
+                    onFreezeCluster = { name, packages ->
+                        for (pkg in packages) {
+                            shellExecutor.execute("pm disable-user --user 0 $pkg")
+                        }
+                        Toast.makeText(context, "Frozen $name", Toast.LENGTH_SHORT).show()
+                    },
+                    onUnfreezeCluster = { name, packages ->
+                        for (pkg in packages) {
+                            shellExecutor.execute("pm enable $pkg")
+                        }
+                        Toast.makeText(context, "Unfrozen $name", Toast.LENGTH_SHORT).show()
+                    }
                 )
             }
             AutoScreen.CLUSTER_DETAILS -> {
-                ClusterDetailsScreen(
-                    context = context,
-                    clusterName = selectedClusterName,
-                    shellExecutor = shellExecutor,
-                    onBack = { currentScreen = AutoScreen.CLUSTERS_LIST },
-                    onEditCluster = { name ->
-                        editingClusterName = name
-                        currentScreen = AutoScreen.CREATE_EDIT_CLUSTER
-                    },
-                    onDeleteCluster = { name ->
-                        val currentSet = prefs.getStringSet("cluster_names", emptySet()) ?: emptySet()
-                        val newSet = currentSet.toMutableSet()
-                        newSet.remove(name)
-                        prefs.edit()
-                            .putStringSet("cluster_names", newSet)
-                            .remove("cluster:$name")
-                            .remove("schedule:$name")
-                            .apply()
-                        refreshClusters()
-                        currentScreen = AutoScreen.CLUSTERS_LIST
-                    },
-                    prefs = prefs
-                )
+                val cluster = clustersList.firstOrNull { it.name == selectedClusterName }
+                if (cluster != null) {
+                    ClusterDetailsScreen(
+                        context = context,
+                        cluster = cluster,
+                        shellExecutor = shellExecutor,
+                        onBack = { currentScreen = AutoScreen.CLUSTERS_LIST },
+                        onEditCluster = { name ->
+                            editingClusterName = name
+                            currentScreen = AutoScreen.CREATE_EDIT_CLUSTER
+                        },
+                        onDeleteCluster = { name ->
+                            val updated = clustersList.filter { it.name != name }
+                            dataStore.saveString("saved_clusters", Json.encodeToString(updated))
+                            loadClusters()
+                            currentScreen = AutoScreen.CLUSTERS_LIST
+                        },
+                        onScheduleToggle = { name, scheduleEnabled ->
+                            val updated = clustersList.map {
+                                if (it.name == name) it.copy(isScheduled = scheduleEnabled) else it
+                            }
+                            dataStore.saveString("saved_clusters", Json.encodeToString(updated))
+                            loadClusters()
+                        }
+                    )
+                } else {
+                    currentScreen = AutoScreen.CLUSTERS_LIST
+                }
             }
             AutoScreen.CREATE_EDIT_CLUSTER -> {
+                val editingCluster = if (editingClusterName != null) clustersList.firstOrNull { it.name == editingClusterName } else null
                 CreateEditClusterScreen(
                     context = context,
-                    editingClusterName = editingClusterName,
+                    editingCluster = editingCluster,
                     onBack = {
                         if (editingClusterName != null) {
                             currentScreen = AutoScreen.CLUSTER_DETAILS
@@ -203,55 +229,61 @@ class AutomationCluster : AutomationExtension {
                         }
                     },
                     onSave = { name, packages ->
-                        val currentSet = prefs.getStringSet("cluster_names", emptySet()) ?: emptySet()
-                        val newSet = currentSet.toMutableSet()
-                        newSet.add(name)
-                        prefs.edit()
-                            .putStringSet("cluster_names", newSet)
-                            .putString("cluster:$name", packages.joinToString(","))
-                            .apply()
-                        refreshClusters()
+                        val updated = clustersList.toMutableList()
+                        val idx = updated.indexOfFirst { it.name == name }
+                        val isSched = editingCluster?.isScheduled ?: false
+                        val newCluster = AppCluster(name, packages, isSched)
+                        if (idx >= 0) {
+                            updated[idx] = newCluster
+                        } else {
+                            updated.add(newCluster)
+                        }
+                        dataStore.saveString("saved_clusters", Json.encodeToString(updated))
+                        loadClusters()
                         selectedClusterName = name
                         currentScreen = AutoScreen.CLUSTER_DETAILS
-                    },
-                    prefs = prefs
+                    }
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ClustersListScreen(
     context: Context,
-    clustersList: List<String>,
+    clustersList: List<AppCluster>,
     shellExecutor: ShellExecutor,
     onBack: () -> Unit,
     onClusterClick: (String) -> Unit,
     onAddCluster: () -> Unit,
-    prefs: android.content.SharedPreferences
+    onFreezeCluster: (String, List<String>) -> Unit,
+    onUnfreezeCluster: (String, List<String>) -> Unit
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                },
-                title = {
-                    Text("App Clusters")
-                },
-                subtitle = {
-                    Text("Manage/trigger groups of apps collectively.")
-                },
-                windowInsets = WindowInsets(0,0,0,0)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Back",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = "App Clusters",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Black,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -262,8 +294,7 @@ fun ClustersListScreen(
             ) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = "Add Cluster")
             }
-        },
-        contentWindowInsets = WindowInsets(0,0,0,0)
+        }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -273,6 +304,12 @@ fun ClustersListScreen(
                 .padding(horizontal = 24.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Manage and trigger groups of apps collectively.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(24.dp))
 
             if (clustersList.isEmpty()) {
                 Box(
@@ -307,12 +344,9 @@ fun ClustersListScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    items(clustersList) { name ->
-                        val packagesString = prefs.getString("cluster:$name", "") ?: ""
-                        val appCount = if (packagesString.isEmpty()) 0 else packagesString.split(",").size
-
+                    items(clustersList, key = { it.name }) { cluster ->
                         Card(
-                            onClick = { onClusterClick(name) },
+                            onClick = { onClusterClick(cluster.name) },
                             shape = RoundedCornerShape(24.dp),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow
@@ -328,13 +362,13 @@ fun ClustersListScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = name,
+                                        text = cluster.name,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = "$appCount apps",
+                                        text = "${cluster.packages.size} apps",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -344,15 +378,7 @@ fun ClustersListScreen(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     IconButton(
-                                        onClick = {
-                                            if (packagesString.isNotEmpty()) {
-                                                val packageList = packagesString.split(",")
-                                                for (pkg in packageList) {
-                                                    shellExecutor.execute("pm disable-user --user 0 $pkg")
-                                                }
-                                                Toast.makeText(context, "Frozen $name", Toast.LENGTH_SHORT).show()
-                                            }
-                                        },
+                                        onClick = { onFreezeCluster(cluster.name, cluster.packages) },
                                         modifier = Modifier
                                             .size(36.dp)
                                             .clip(CircleShape)
@@ -367,15 +393,7 @@ fun ClustersListScreen(
                                     }
 
                                     IconButton(
-                                        onClick = {
-                                            if (packagesString.isNotEmpty()) {
-                                                val packageList = packagesString.split(",")
-                                                for (pkg in packageList) {
-                                                    shellExecutor.execute("pm enable $pkg")
-                                                }
-                                                Toast.makeText(context, "Unfrozen $name", Toast.LENGTH_SHORT).show()
-                                            }
-                                        },
+                                        onClick = { onUnfreezeCluster(cluster.name, cluster.packages) },
                                         modifier = Modifier
                                             .size(36.dp)
                                             .clip(CircleShape)
@@ -401,23 +419,23 @@ fun ClustersListScreen(
 @Composable
 fun ClusterDetailsScreen(
     context: Context,
-    clusterName: String,
+    cluster: AppCluster,
     shellExecutor: ShellExecutor,
     onBack: () -> Unit,
     onEditCluster: (String) -> Unit,
     onDeleteCluster: (String) -> Unit,
-    prefs: android.content.SharedPreferences
+    onScheduleToggle: (String, Boolean) -> Unit
 ) {
-    val packagesString = remember(clusterName) { prefs.getString("cluster:$clusterName", "") ?: "" }
-    val packageList = remember(packagesString) { packagesString.split(",").filter { it.isNotEmpty() } }
-
-    var isScheduled by remember { mutableStateOf(prefs.getBoolean("schedule:$clusterName", false)) }
+    val clusterName = cluster.name
+    val packageList = cluster.packages
+    var isScheduled by remember(cluster) { mutableStateOf(cluster.isScheduled) }
 
     Scaffold(
         topBar = {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -555,7 +573,7 @@ fun ClusterDetailsScreen(
 
                         if (isScheduled) {
                             alarmManager.cancel(pendingIntent)
-                            prefs.edit().putBoolean("schedule:$clusterName", false).apply()
+                            onScheduleToggle(clusterName, false)
                             isScheduled = false
                             Toast.makeText(context, "Schedule removed", Toast.LENGTH_SHORT).show()
                         } else {
@@ -577,7 +595,7 @@ fun ClusterDetailsScreen(
                             } else {
                                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
                             }
-                            prefs.edit().putBoolean("schedule:$clusterName", true).apply()
+                            onScheduleToggle(clusterName, true)
                             isScheduled = true
                             Toast.makeText(context, "Scheduled daily 9:00 PM", Toast.LENGTH_SHORT).show()
                         }
@@ -722,22 +740,18 @@ fun ClusterDetailsScreen(
 @Composable
 fun CreateEditClusterScreen(
     context: Context,
-    editingClusterName: String?,
+    editingCluster: AppCluster?,
     onBack: () -> Unit,
-    onSave: (String, List<String>) -> Unit,
-    prefs: android.content.SharedPreferences
+    onSave: (String, List<String>) -> Unit
 ) {
-    var clusterName by remember { mutableStateOf(editingClusterName ?: "") }
+    var clusterName by remember { mutableStateOf(editingCluster?.name ?: "") }
     var searchQuery by remember { mutableStateOf("") }
     val selectedPackages = remember { mutableStateListOf<String>() }
 
-    LaunchedEffect(editingClusterName) {
-        if (editingClusterName != null) {
-            val saved = prefs.getString("cluster:$editingClusterName", "") ?: ""
-            if (saved.isNotEmpty()) {
-                selectedPackages.clear()
-                selectedPackages.addAll(saved.split(","))
-            }
+    LaunchedEffect(editingCluster) {
+        if (editingCluster != null) {
+            selectedPackages.clear()
+            selectedPackages.addAll(editingCluster.packages)
         }
     }
 
@@ -761,6 +775,7 @@ fun CreateEditClusterScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -773,7 +788,7 @@ fun CreateEditClusterScreen(
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
-                    text = if (editingClusterName != null) "Edit Cluster" else "New Cluster",
+                    text = if (editingCluster != null) "Edit Cluster" else "New Cluster",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Black,
                     color = MaterialTheme.colorScheme.onSurface
@@ -792,10 +807,10 @@ fun CreateEditClusterScreen(
 
             OutlinedTextField(
                 value = clusterName,
-                onValueChange = { if (editingClusterName == null) clusterName = it },
+                onValueChange = { if (editingCluster == null) clusterName = it },
                 label = { Text("Cluster Name") },
                 shape = RoundedCornerShape(12.dp),
-                enabled = editingClusterName == null,
+                enabled = editingCluster == null,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
             )
 
