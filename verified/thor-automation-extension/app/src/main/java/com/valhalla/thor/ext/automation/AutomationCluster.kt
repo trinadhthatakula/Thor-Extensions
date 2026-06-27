@@ -43,6 +43,7 @@ import com.valhalla.thor.extension.api.AutomationExtension
 import com.valhalla.thor.extension.api.ExtensionDataStore
 import com.valhalla.thor.extension.api.ShellExecutor
 import com.valhalla.thor.extension.api.AppIcon
+import com.valhalla.thor.extension.api.Logger
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.util.Calendar
@@ -67,7 +68,7 @@ class AutomationCluster : AutomationExtension {
     private var editingClusterName by mutableStateOf<String?>(null)
 
     override fun onBackPressed(): Boolean {
-        android.util.Log.d("AutomationCluster", "onBackPressed! currentScreen = $currentScreen")
+        Logger.d("AutomationCluster", "onBackPressed! currentScreen = $currentScreen")
         return when (currentScreen) {
             AutoScreen.CREATE_EDIT_CLUSTER -> {
                 currentScreen = if (editingClusterName != null) {
