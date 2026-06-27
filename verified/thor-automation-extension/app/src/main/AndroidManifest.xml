@@ -18,15 +18,7 @@
             android:name="thor.extension.api.version"
             android:value="1" />
 
-        <!-- UI Configuration Activity -->
-        <activity
-            android:name="com.valhalla.thor.ext.automation.MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="com.valhalla.thor.intent.action.LAUNCH_EXTENSION" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
+
 
         <!-- Alarm Receiver to receive background alarm triggers and notify Thor -->
         <receiver
