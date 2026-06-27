@@ -45,6 +45,30 @@ class AutomationCluster : AutomationExtension {
     override val version: String = "1.0.0"
     override val author: String = "Thor Team"
 
+    private var currentScreen by mutableStateOf(AutoScreen.CLUSTERS_LIST)
+    private var selectedClusterName by mutableStateOf("")
+    private var editingClusterName by mutableStateOf<String?>(null)
+
+    override fun onBackPressed(): Boolean {
+        return when (currentScreen) {
+            AutoScreen.CREATE_EDIT_CLUSTER -> {
+                currentScreen = if (editingClusterName != null) {
+                    AutoScreen.CLUSTER_DETAILS
+                } else {
+                    AutoScreen.CLUSTERS_LIST
+                }
+                true
+            }
+            AutoScreen.CLUSTER_DETAILS -> {
+                currentScreen = AutoScreen.CLUSTERS_LIST
+                true
+            }
+            AutoScreen.CLUSTERS_LIST -> {
+                false
+            }
+        }
+    }
+
     override fun onTrigger(context: Context, eventType: String, shellExecutor: ShellExecutor) {
         val parts = eventType.split(":")
         if (parts.size < 2) return
@@ -100,9 +124,12 @@ class AutomationCluster : AutomationExtension {
     @Composable
     override fun ConfigurationScreen(shellExecutor: ShellExecutor, onBack: () -> Unit) {
         val context = LocalContext.current
-        var currentScreen by remember { mutableStateOf(AutoScreen.CLUSTERS_LIST) }
-        var selectedClusterName by remember { mutableStateOf("") }
-        var editingClusterName by remember { mutableStateOf<String?>(null) }
+
+        LaunchedEffect(Unit) {
+            currentScreen = AutoScreen.CLUSTERS_LIST
+            selectedClusterName = ""
+            editingClusterName = null
+        }
 
         val extContext = remember {
             try {
@@ -119,24 +146,6 @@ class AutomationCluster : AutomationExtension {
 
         val refreshClusters = {
             clustersList = prefs.getStringSet("cluster_names", emptySet())?.toList() ?: emptyList()
-        }
-
-        val handleBack = {
-            if (currentScreen == AutoScreen.CREATE_EDIT_CLUSTER) {
-                if (editingClusterName != null) {
-                    currentScreen = AutoScreen.CLUSTER_DETAILS
-                } else {
-                    currentScreen = AutoScreen.CLUSTERS_LIST
-                }
-            } else if (currentScreen == AutoScreen.CLUSTER_DETAILS) {
-                currentScreen = AutoScreen.CLUSTERS_LIST
-            } else {
-                onBack()
-            }
-        }
-
-        androidx.activity.compose.BackHandler(enabled = true) {
-            handleBack()
         }
 
         when (currentScreen) {
