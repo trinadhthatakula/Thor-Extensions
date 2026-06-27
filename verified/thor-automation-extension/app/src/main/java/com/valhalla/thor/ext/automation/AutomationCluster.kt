@@ -121,6 +121,24 @@ class AutomationCluster : AutomationExtension {
             clustersList = prefs.getStringSet("cluster_names", emptySet())?.toList() ?: emptyList()
         }
 
+        val handleBack = {
+            if (currentScreen == AutoScreen.CREATE_EDIT_CLUSTER) {
+                if (editingClusterName != null) {
+                    currentScreen = AutoScreen.CLUSTER_DETAILS
+                } else {
+                    currentScreen = AutoScreen.CLUSTERS_LIST
+                }
+            } else if (currentScreen == AutoScreen.CLUSTER_DETAILS) {
+                currentScreen = AutoScreen.CLUSTERS_LIST
+            } else {
+                onBack()
+            }
+        }
+
+        androidx.activity.compose.BackHandler(enabled = true) {
+            handleBack()
+        }
+
         when (currentScreen) {
             AutoScreen.CLUSTERS_LIST -> {
                 ClustersListScreen(
