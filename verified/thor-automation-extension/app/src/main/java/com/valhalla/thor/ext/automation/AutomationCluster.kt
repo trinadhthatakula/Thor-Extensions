@@ -8,10 +8,15 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -31,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -42,6 +49,25 @@ import com.valhalla.thor.extension.api.ShellExecutor
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.util.Calendar
+
+fun Drawable.toBitmap(): Bitmap {
+    if (this is BitmapDrawable) {
+        if (this.bitmap != null) {
+            return this.bitmap
+        }
+    }
+
+    val bitmap = if (this.intrinsicWidth <= 0 || this.intrinsicHeight <= 0) {
+        Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+    } else {
+        Bitmap.createBitmap(this.intrinsicWidth, this.intrinsicHeight, Bitmap.Config.ARGB_8888)
+    }
+
+    val canvas = Canvas(bitmap)
+    this.setBounds(0, 0, canvas.width, canvas.height)
+    this.draw(canvas)
+    return bitmap
+}
 
 @Serializable
 data class AppCluster(
@@ -657,15 +683,36 @@ fun ClusterDetailsScreen(
                 items(packageList) { pkg ->
                     var appLabel by remember(pkg) { mutableStateOf(pkg) }
                     var isFrozen by remember(pkg) { mutableStateOf(false) }
+                    var appIcon by remember(pkg) { mutableStateOf<ImageBitmap?>(null) }
 
                     LaunchedEffect(pkg) {
-                        try {
-                            val info = pm.getApplicationInfo(pkg, 0)
-                            appLabel = info.loadLabel(pm).toString()
-                            isFrozen = !info.enabled
-                        } catch (e: Exception) {
-                            val statusResult = shellExecutor.execute("pm list packages -d $pkg")
-                            isFrozen = statusResult.second?.contains(pkg) == true
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            try {
+                                val info = pm.getApplicationInfo(pkg, 0)
+                                val label = info.loadLabel(pm).toString()
+                                val iconDrawable = info.loadIcon(pm)
+                                val bitmap = iconDrawable.toBitmap().asImageBitmap()
+                                val enabled = info.enabled
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    appLabel = label
+                                    appIcon = bitmap
+                                    isFrozen = !enabled
+                                }
+                            } catch (e: Exception) {
+                                val statusResult = shellExecutor.execute("pm list packages -d $pkg")
+                                val frozen = statusResult.second?.contains(pkg) == true
+                                var bitmap: ImageBitmap? = null
+                                try {
+                                    val iconDrawable = pm.getApplicationIcon(pkg)
+                                    bitmap = iconDrawable.toBitmap().asImageBitmap()
+                                } catch (_: Exception) {}
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    isFrozen = frozen
+                                    if (bitmap != null) {
+                                        appIcon = bitmap
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -696,12 +743,20 @@ fun ClusterDetailsScreen(
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = appLabel.firstOrNull()?.toString() ?: "?",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Black,
-                                    color = if (isFrozen) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                                )
+                                if (appIcon != null) {
+                                    Image(
+                                        bitmap = appIcon!!,
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize().padding(4.dp)
+                                    )
+                                } else {
+                                    Text(
+                                        text = appLabel.firstOrNull()?.toString() ?: "?",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Black,
+                                        color = if (isFrozen) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
 
                             Spacer(modifier = Modifier.height(8.dp))
@@ -831,6 +886,19 @@ fun CreateEditClusterScreen(
                     val pm = context.packageManager
                     val appLabel = app.loadLabel(pm).toString()
                     val isSelected = selectedPackages.contains(app.packageName)
+                    var appIcon by remember(app.packageName) { mutableStateOf<ImageBitmap?>(null) }
+
+                    LaunchedEffect(app.packageName) {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            try {
+                                val iconDrawable = app.loadIcon(pm)
+                                val bitmap = iconDrawable.toBitmap().asImageBitmap()
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    appIcon = bitmap
+                                }
+                            } catch (_: Exception) {}
+                        }
+                    }
 
                     Row(
                         modifier = Modifier
@@ -847,6 +915,31 @@ fun CreateEditClusterScreen(
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (appIcon != null) {
+                                Image(
+                                    bitmap = appIcon!!,
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize().padding(4.dp)
+                                )
+                            } else {
+                                Text(
+                                    text = appLabel.firstOrNull()?.toString() ?: "?",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = appLabel,
@@ -864,7 +957,7 @@ fun CreateEditClusterScreen(
                             checked = isSelected,
                             onCheckedChange = {
                                 if (isSelected) selectedPackages.remove(app.packageName)
-                                else selectedPackages.add(app.packageName)
+                                    else selectedPackages.add(app.packageName)
                             }
                         )
                     }
