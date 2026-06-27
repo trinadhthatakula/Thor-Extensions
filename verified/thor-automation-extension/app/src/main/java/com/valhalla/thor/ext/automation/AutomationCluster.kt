@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -249,6 +250,7 @@ class AutomationCluster : AutomationExtension {
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ClustersListScreen(
     context: Context,
@@ -262,28 +264,24 @@ fun ClustersListScreen(
 ) {
     Scaffold(
         topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(
-                    text = "App Clusters",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
+            TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                },
+                title = {
+                    Text("App Clusters")
+                },
+                subtitle = {
+                    Text("Manage/trigger groups of apps collectively.")
+                },
+                windowInsets = WindowInsets(0, 0, 0, 0)
+            )
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -294,7 +292,8 @@ fun ClustersListScreen(
             ) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = "Add Cluster")
             }
-        }
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -304,12 +303,6 @@ fun ClustersListScreen(
                 .padding(horizontal = 24.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Manage and trigger groups of apps collectively.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(24.dp))
 
             if (clustersList.isEmpty()) {
                 Box(
