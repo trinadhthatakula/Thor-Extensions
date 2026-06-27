@@ -46,6 +46,8 @@ import com.valhalla.thor.extension.api.AppIcon
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.util.Calendar
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Serializable
 data class AppCluster(
@@ -136,6 +138,7 @@ class AutomationCluster : AutomationExtension {
     @Composable
     override fun ConfigurationScreen(shellExecutor: ShellExecutor, dataStore: ExtensionDataStore, onBack: () -> Unit) {
         val context = LocalContext.current
+        val scope = rememberCoroutineScope()
 
         LaunchedEffect(Unit) {
             currentScreen = AutoScreen.CLUSTERS_LIST
@@ -178,16 +181,24 @@ class AutomationCluster : AutomationExtension {
                         currentScreen = AutoScreen.CREATE_EDIT_CLUSTER
                     },
                     onFreezeCluster = { name, packages ->
-                        for (pkg in packages) {
-                            shellExecutor.execute("pm disable-user --user 0 $pkg")
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            for (pkg in packages) {
+                                shellExecutor.execute("pm disable-user --user 0 $pkg")
+                            }
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                Toast.makeText(context, "Frozen $name", Toast.LENGTH_SHORT).show()
+                            }
                         }
-                        Toast.makeText(context, "Frozen $name", Toast.LENGTH_SHORT).show()
                     },
                     onUnfreezeCluster = { name, packages ->
-                        for (pkg in packages) {
-                            shellExecutor.execute("pm enable $pkg")
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            for (pkg in packages) {
+                                shellExecutor.execute("pm enable $pkg")
+                            }
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                Toast.makeText(context, "Unfrozen $name", Toast.LENGTH_SHORT).show()
+                            }
                         }
-                        Toast.makeText(context, "Unfrozen $name", Toast.LENGTH_SHORT).show()
                     }
                 )
             }
@@ -426,6 +437,7 @@ fun ClusterDetailsScreen(
     val clusterName = cluster.name
     val packageList = cluster.packages
     var isScheduled by remember(cluster) { mutableStateOf(cluster.isScheduled) }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -476,10 +488,14 @@ fun ClusterDetailsScreen(
             ) {
                 Button(
                     onClick = {
-                        for (pkg in packageList) {
-                            shellExecutor.execute("pm disable-user --user 0 $pkg")
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            for (pkg in packageList) {
+                                shellExecutor.execute("pm disable-user --user 0 $pkg")
+                            }
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                Toast.makeText(context, "Cluster frozen", Toast.LENGTH_SHORT).show()
+                            }
                         }
-                        Toast.makeText(context, "Cluster frozen", Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
@@ -498,10 +514,14 @@ fun ClusterDetailsScreen(
 
                 Button(
                     onClick = {
-                        for (pkg in packageList) {
-                            shellExecutor.execute("pm enable $pkg")
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            for (pkg in packageList) {
+                                shellExecutor.execute("pm enable $pkg")
+                            }
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                Toast.makeText(context, "Cluster unfrozen", Toast.LENGTH_SHORT).show()
+                            }
                         }
-                        Toast.makeText(context, "Cluster unfrozen", Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -663,13 +683,22 @@ fun ClusterDetailsScreen(
                     var isFrozen by remember(pkg) { mutableStateOf(false) }
 
                     LaunchedEffect(pkg) {
-                        try {
-                            val info = pm.getApplicationInfo(pkg, 0)
-                            appLabel = info.loadLabel(pm).toString()
-                            isFrozen = !info.enabled
-                        } catch (e: Exception) {
-                            val statusResult = shellExecutor.execute("pm list packages -d $pkg")
-                            isFrozen = statusResult.second?.contains(pkg) == true
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            try {
+                                val info = pm.getApplicationInfo(pkg, 0)
+                                val label = info.loadLabel(pm).toString()
+                                val enabled = info.enabled
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    appLabel = label
+                                    isFrozen = !enabled
+                                }
+                            } catch (e: Exception) {
+                                val statusResult = shellExecutor.execute("pm list packages -d $pkg")
+                                val frozen = statusResult.second?.contains(pkg) == true
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    isFrozen = frozen
+                                }
+                            }
                         }
                     }
 
