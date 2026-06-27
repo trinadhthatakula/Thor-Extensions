@@ -1,3 +1,5 @@
+@file:Suppress("unused")
+
 package com.valhalla.thor.ext.automation
 
 import android.app.AlarmManager
@@ -12,43 +14,83 @@ import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.valhalla.thor.extension.api.AppIcon
 import com.valhalla.thor.extension.api.AutomationExtension
 import com.valhalla.thor.extension.api.ExtensionDataStore
-import com.valhalla.thor.extension.api.ShellExecutor
-import com.valhalla.thor.extension.api.AppIcon
 import com.valhalla.thor.extension.api.Logger
+import com.valhalla.thor.extension.api.ShellExecutor
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.util.Calendar
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Serializable
 data class AppCluster(
@@ -57,6 +99,7 @@ data class AppCluster(
     val isScheduled: Boolean = false
 )
 
+@Suppress("unused")
 class AutomationCluster : AutomationExtension {
     override val name: String = "Thor Cluster Automator"
     override val description: String = "Automate freezing and unfreezing of custom app clusters."
@@ -97,7 +140,7 @@ class AutomationCluster : AutomationExtension {
         val clustersJson = dataStore.getString("saved_clusters") ?: return
         val clustersList = try {
             Json.decodeFromString<List<AppCluster>>(clustersJson)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             emptyList()
         }
         val cluster = clustersList.firstOrNull { it.name == clusterName } ?: return
@@ -157,11 +200,11 @@ class AutomationCluster : AutomationExtension {
                 } else {
                     try {
                         Json.decodeFromString<List<AppCluster>>(clustersJson)
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         emptyList()
                     }
                 }
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                withContext(kotlinx.coroutines.Dispatchers.Main) {
                     clustersList = list
                 }
             }
@@ -191,7 +234,7 @@ class AutomationCluster : AutomationExtension {
                             for (pkg in packages) {
                                 shellExecutor.execute("pm disable-user --user 0 $pkg")
                             }
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            withContext(kotlinx.coroutines.Dispatchers.Main) {
                                 Toast.makeText(context, "Frozen $name", Toast.LENGTH_SHORT).show()
                             }
                         }
@@ -201,7 +244,7 @@ class AutomationCluster : AutomationExtension {
                             for (pkg in packages) {
                                 shellExecutor.execute("pm enable $pkg")
                             }
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            withContext(kotlinx.coroutines.Dispatchers.Main) {
                                 Toast.makeText(context, "Unfrozen $name", Toast.LENGTH_SHORT).show()
                             }
                         }
@@ -224,7 +267,7 @@ class AutomationCluster : AutomationExtension {
                             scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                 val updated = clustersList.filter { it.name != name }
                                 dataStore.saveString("saved_clusters", Json.encodeToString(updated))
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                withContext(kotlinx.coroutines.Dispatchers.Main) {
                                     loadClusters()
                                     currentScreen = AutoScreen.CLUSTERS_LIST
                                 }
@@ -236,7 +279,7 @@ class AutomationCluster : AutomationExtension {
                                     if (it.name == name) it.copy(isScheduled = scheduleEnabled) else it
                                 }
                                 dataStore.saveString("saved_clusters", Json.encodeToString(updated))
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                withContext(kotlinx.coroutines.Dispatchers.Main) {
                                     loadClusters()
                                 }
                             }
@@ -270,7 +313,7 @@ class AutomationCluster : AutomationExtension {
                                 updated.add(newCluster)
                             }
                             dataStore.saveString("saved_clusters", Json.encodeToString(updated))
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            withContext(kotlinx.coroutines.Dispatchers.Main) {
                                 loadClusters()
                                 selectedClusterName = name
                                 currentScreen = AutoScreen.CLUSTER_DETAILS
@@ -469,7 +512,7 @@ fun ClusterDetailsScreen(
             ) {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
                         tint = MaterialTheme.colorScheme.onSurface
                     )
@@ -511,7 +554,7 @@ fun ClusterDetailsScreen(
                             for (pkg in packageList) {
                                 shellExecutor.execute("pm disable-user --user 0 $pkg")
                             }
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            withContext(kotlinx.coroutines.Dispatchers.Main) {
                                 Toast.makeText(context, "Cluster frozen", Toast.LENGTH_SHORT).show()
                                 refreshTrigger++
                             }
@@ -538,7 +581,7 @@ fun ClusterDetailsScreen(
                             for (pkg in packageList) {
                                 shellExecutor.execute("pm enable $pkg")
                             }
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            withContext(kotlinx.coroutines.Dispatchers.Main) {
                                 Toast.makeText(context, "Cluster unfrozen", Toast.LENGTH_SHORT).show()
                                 refreshTrigger++
                             }
@@ -704,19 +747,19 @@ fun ClusterDetailsScreen(
                     var isFrozen by remember(pkg) { mutableStateOf(false) }
 
                     LaunchedEffect(pkg, refreshTrigger) {
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        withContext(kotlinx.coroutines.Dispatchers.IO) {
                             try {
                                 val info = pm.getApplicationInfo(pkg, 0)
                                 val label = info.loadLabel(pm).toString()
                                 val enabled = info.enabled
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                withContext(kotlinx.coroutines.Dispatchers.Main) {
                                     appLabel = label
                                     isFrozen = !enabled
                                 }
                             } catch (e: Exception) {
                                 val statusResult = shellExecutor.execute("pm list packages -d $pkg")
                                 val frozen = statusResult.second?.contains(pkg) == true
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                withContext(kotlinx.coroutines.Dispatchers.Main) {
                                     isFrozen = frozen
                                 }
                             }
