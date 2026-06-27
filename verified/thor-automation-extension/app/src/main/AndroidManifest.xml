@@ -1,0 +1,37 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <!-- Permission to send broadcasts to Thor's secure receiver -->
+    <uses-permission android:name="com.valhalla.thor.permission.TRIGGER_EXTENSION" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
+    <application 
+        android:hasCode="true"
+        android:label="Thor Cluster Automator"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+        
+        <!-- Tells Thor Core which class implements the contract -->
+        <meta-data
+            android:name="thor.extension.class"
+            android:value="com.valhalla.thor.ext.automation.AutomationCluster" />
+        <meta-data
+            android:name="thor.extension.api.version"
+            android:value="1" />
+
+        <!-- UI Configuration Activity -->
+        <activity
+            android:name="com.valhalla.thor.ext.automation.MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Alarm Receiver to receive background alarm triggers and notify Thor -->
+        <receiver
+            android:name="com.valhalla.thor.ext.automation.AlarmReceiver"
+            android:exported="false" />
+            
+    </application>
+</manifest>
