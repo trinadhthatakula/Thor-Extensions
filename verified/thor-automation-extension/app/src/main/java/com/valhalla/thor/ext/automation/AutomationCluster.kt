@@ -16,10 +16,11 @@ import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -35,14 +36,13 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
@@ -51,20 +51,16 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -81,6 +77,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.valhalla.asgard.expressivePress
+import com.valhalla.asgard.components.AsgardActionItem
+import com.valhalla.asgard.components.AsgardHeader
+import com.valhalla.asgard.components.StatusChip
 import com.valhalla.thor.extension.api.AppIcon
 import com.valhalla.thor.extension.api.AutomationExtension
 import com.valhalla.thor.extension.api.ExtensionDataStore
@@ -340,24 +340,7 @@ fun ClustersListScreen(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                },
-                title = {
-                    Text("App Clusters")
-                },
-                subtitle = {
-                    Text("Manage/trigger groups of apps collectively.")
-                },
-                windowInsets = WindowInsets(0, 0, 0, 0)
-            )
+            AsgardHeader(title = "App Clusters", onNavigateBack = onBack)
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -414,13 +397,17 @@ fun ClustersListScreen(
                     modifier = Modifier.weight(1f)
                 ) {
                     items(clustersList, key = { it.name }) { cluster ->
+                        val src = remember { MutableInteractionSource() }
                         Card(
                             onClick = { onClusterClick(cluster.name) },
                             shape = RoundedCornerShape(24.dp),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                             ),
-                            modifier = Modifier.fillMaxWidth()
+                            interactionSource = src,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .expressivePress(src)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -503,28 +490,7 @@ fun ClusterDetailsScreen(
 
     Scaffold(
         topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(
-                    text = clusterName,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
+            AsgardHeader(title = clusterName, onNavigateBack = onBack)
         }
     ) { innerPadding ->
         Column(
@@ -545,10 +511,14 @@ fun ClusterDetailsScreen(
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Button(
+                AsgardActionItem(
+                    icon = Icons.Default.Lock,
+                    label = "Freeze",
                     onClick = {
                         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                             for (pkg in packageList) {
@@ -560,22 +530,12 @@ fun ClusterDetailsScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(vertical = 12.dp)
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(imageVector = Icons.Default.Lock, contentDescription = null)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Freeze", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                    }
-                }
+                    iconTint = MaterialTheme.colorScheme.error
+                )
 
-                Button(
+                AsgardActionItem(
+                    icon = Icons.Default.Refresh,
+                    label = "Unfreeze",
                     onClick = {
                         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                             for (pkg in packageList) {
@@ -586,23 +546,12 @@ fun ClusterDetailsScreen(
                                 refreshTrigger++
                             }
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(vertical = 12.dp)
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(imageVector = Icons.Default.Refresh, contentDescription = null)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Unfreeze", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
-                }
+                )
 
-                Button(
+                AsgardActionItem(
+                    icon = Icons.Default.Share,
+                    label = "Shortcut",
                     onClick = {
                         val shortcutManager = context.getSystemService(ShortcutManager::class.java)
                         if (shortcutManager != null && shortcutManager.isRequestPinShortcutSupported) {
@@ -622,23 +571,12 @@ fun ClusterDetailsScreen(
                         } else {
                             Toast.makeText(context, "Shortcut pinning not supported", Toast.LENGTH_SHORT).show()
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(vertical = 12.dp)
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(imageVector = Icons.Default.Share, contentDescription = null)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Shortcut", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
-                }
+                )
 
-                Button(
+                AsgardActionItem(
+                    icon = Icons.Default.Notifications,
+                    label = if (isScheduled) "Active" else "9PM Daily",
                     onClick = {
                         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
                         val intent = Intent().setClassName("com.valhalla.thor.ext.automation", "com.valhalla.thor.ext.automation.AlarmReceiver").apply {
@@ -681,48 +619,21 @@ fun ClusterDetailsScreen(
                             Toast.makeText(context, "Scheduled daily 9:00 PM", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isScheduled) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = if (isScheduled) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(vertical = 12.dp)
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(imageVector = Icons.Default.Notifications, contentDescription = null)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(if (isScheduled) "Active" else "9PM Daily", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
+                    iconTint = if (isScheduled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-            Spacer(modifier = Modifier.height(8.dp))
+                AsgardActionItem(
+                    icon = Icons.Default.Edit,
+                    label = "Edit",
+                    onClick = { onEditCluster(clusterName) }
+                )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { onEditCluster(clusterName) },
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Edit")
-                }
-
-                OutlinedButton(
+                AsgardActionItem(
+                    icon = Icons.Default.Delete,
+                    label = "Delete",
                     onClick = { onDeleteCluster(clusterName) },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(imageVector = Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Delete")
-                }
+                    iconTint = MaterialTheme.colorScheme.error
+                )
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -815,11 +726,9 @@ fun ClusterDetailsScreen(
                                 textAlign = TextAlign.Center
                             )
 
-                            Text(
+                            StatusChip(
                                 text = if (isFrozen) "Frozen" else "Active",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Normal,
-                                color = if (isFrozen) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                                containerColor = if (isFrozen) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
                             )
                         }
                     }
@@ -864,28 +773,10 @@ fun CreateEditClusterScreen(
 
     Scaffold(
         topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Cancel",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(
-                    text = if (editingCluster != null) "Edit Cluster" else "New Cluster",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
+            AsgardHeader(
+                title = if (editingCluster != null) "Edit Cluster" else "New Cluster",
+                onNavigateBack = onBack
+            )
         }
     ) { innerPadding ->
         Column(
@@ -931,15 +822,17 @@ fun CreateEditClusterScreen(
                     val appLabel = app.loadLabel(pm).toString()
                     val isSelected = selectedPackages.contains(app.packageName)
 
+                    val src = remember { MutableInteractionSource() }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
+                            .clip(RoundedCornerShape(24.dp))
                             .background(
-                                if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                if (isSelected) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                                else MaterialTheme.colorScheme.surfaceContainerLow
                             )
-                            .clickable {
+                            .expressivePress(src)
+                            .clickable(interactionSource = src, indication = null) {
                                 if (isSelected) selectedPackages.remove(app.packageName)
                                 else selectedPackages.add(app.packageName)
                             }
@@ -950,7 +843,7 @@ fun CreateEditClusterScreen(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                             contentAlignment = Alignment.Center
                         ) {
                             AppIcon(
@@ -974,13 +867,15 @@ fun CreateEditClusterScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Checkbox(
-                            checked = isSelected,
-                            onCheckedChange = {
-                                if (isSelected) selectedPackages.remove(app.packageName)
-                                    else selectedPackages.add(app.packageName)
-                            }
-                        )
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = "Selected",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.size(24.dp))
+                        }
                     }
                 }
             }

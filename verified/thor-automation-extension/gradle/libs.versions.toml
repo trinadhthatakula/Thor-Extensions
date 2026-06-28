@@ -12,6 +12,7 @@ materialIcons = "1.7.8"
 lifecycleRuntimeKtx = "2.11.0"
 kotlinxSerializationJson = "1.11.0"
 thorExtensionApi = "1.0.0"
+asgardUi = "1.0.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -29,6 +30,8 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 
 # Thor extension contract — provided by the host app at runtime, so consume as compileOnly.
 thor-extension-api = { module = "io.github.trinadhthatakula:thor-extension-api", version.ref = "thorExtensionApi" }
+# Asgard UI components — also provided by the host (Thor) at runtime, so compileOnly.
+asgard = { module = "com.trinadhthatakula:asgard", version.ref = "asgardUi" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -60,4 +60,6 @@ dependencies {
     // Thor extension contract. compileOnly: the host app provides these classes at runtime
     // (extensions load into Thor's process), so they must NOT be bundled into the extension APK.
     compileOnly(libs.thor.extension.api)
+    // Asgard UI components — host (Thor) provides them at runtime; compileOnly keeps them out of the APK.
+    compileOnly(libs.asgard)
 }
