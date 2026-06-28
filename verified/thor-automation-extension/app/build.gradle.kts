@@ -56,4 +56,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.kotlinx.serialization.json)
     implementation("io.coil-kt.coil3:coil-compose:3.5.0")
+
+    // Thor extension contract. compileOnly: the host app provides these classes at runtime
+    // (extensions load into Thor's process), so they must NOT be bundled into the extension APK.
+    compileOnly(libs.thor.extension.api)
 }

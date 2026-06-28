@@ -22,14 +22,15 @@ thor-extension-template/
                 └── com/
                     └── valhalla/
                         └── thor/
-                            ├── extension/
-                            │   └── api/                  # Duplicate of Core contracts
-                            │       ├── ThorExtension.kt
-                            │       └── DebloatExtension.kt
                             └── ext/
                                 └── sample/               # Your extension code
                                     └── SampleDebloatExtension.kt
 ```
+
+The contract interfaces (`ThorExtension`, `AutomationExtension`, `DebloatExtension`, `ShellExecutor`,
+`ExtensionDataStore`, `Logger`, `AppIcon`) are **not** copied into this project — they come from the
+published [`io.github.trinadhthatakula:thor-extension-api`](https://github.com/trinadhthatakula/Thor-extension-api)
+artifact on Maven Central, declared as `compileOnly` (the host provides them at runtime).
 
 ---
 
@@ -41,9 +42,23 @@ Thor Core discovers extensions by scanning for package names starting with the p
 - Move and rename your implementation source directory to match your package.
 
 > [!IMPORTANT]
-> Do NOT rename or move classes inside the `com.valhalla.thor.extension.api` package. These interfaces must retain their exact package names so that the Thor Core class loader can link them.
+> Do NOT copy or re-declare the `com.valhalla.thor.extension.api` interfaces locally — depend on the published artifact instead. The host links your extension against its own identical interfaces by package name, so the contract must come from the shared artifact, not a local copy.
 
-### 2. Implement the Contract
+### 2. Add the API dependency
+The contract is published on Maven Central. Add it as **`compileOnly`** so the interfaces are available at compile time but not bundled into your APK (Thor provides them at runtime):
+
+```kotlin
+// gradle/libs.versions.toml
+// [versions] thorExtensionApi = "1.0.0"
+// [libraries] thor-extension-api = { module = "io.github.trinadhthatakula:thor-extension-api", version.ref = "thorExtensionApi" }
+
+// app/build.gradle.kts
+dependencies {
+    compileOnly(libs.thor.extension.api)
+}
+```
+
+### 3. Implement the Contract
 Implement the `DebloatExtension` interface (or other extension contracts) in your Kotlin class. For example:
 
 ```kotlin
@@ -71,7 +86,7 @@ class MyExtension : DebloatExtension {
 }
 ```
 
-### 3. Declare the Entry Point in the Manifest
+### 4. Declare the Entry Point in the Manifest
 The extension has no launcher Activity. In `app/src/main/AndroidManifest.xml`, configure the `<meta-data>` values to point to your implementation class:
 
 ```xml
@@ -89,7 +104,7 @@ The extension has no launcher Activity. In `app/src/main/AndroidManifest.xml`, c
 </manifest>
 ```
 
-### 4. Build and Install
+### 5. Build and Install
 Run the Gradle assemble task to generate your extension APK:
 
 ```bash
