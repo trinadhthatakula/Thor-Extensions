@@ -131,7 +131,7 @@ class AutomationCluster : AutomationExtension {
         }
     }
 
-    override fun onTrigger(context: Context, eventType: String, shellExecutor: ShellExecutor, dataStore: ExtensionDataStore) {
+    override suspend fun onTrigger(context: Context, eventType: String, shellExecutor: ShellExecutor, dataStore: ExtensionDataStore) {
         val parts = eventType.split(":")
         if (parts.size < 2) return
         val action = parts[0]
