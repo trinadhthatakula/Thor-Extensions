@@ -29,7 +29,7 @@ thor-extension-template/
 
 The contract interfaces (`ThorExtension`, `AutomationExtension`, `DebloatExtension`, `ShellExecutor`,
 `ExtensionDataStore`, `Logger`, `AppIcon`) are **not** copied into this project — they come from the
-published [`io.github.trinadhthatakula:thor-extension-api`](https://github.com/trinadhthatakula/Thor-extension-api)
+published [`com.trinadhthatakula:thor-extension-api`](https://github.com/trinadhthatakula/Thor-extension-api)
 artifact on Maven Central, declared as `compileOnly` (the host provides them at runtime).
 
 ---
@@ -49,8 +49,8 @@ The contract is published on Maven Central. Add it as **`compileOnly`** so the i
 
 ```kotlin
 // gradle/libs.versions.toml
-// [versions] thorExtensionApi = "1.0.0"
-// [libraries] thor-extension-api = { module = "io.github.trinadhthatakula:thor-extension-api", version.ref = "thorExtensionApi" }
+// [versions] thorExtensionApi = "1.0.1"
+// [libraries] thor-extension-api = { module = "com.trinadhthatakula:thor-extension-api", version.ref = "thorExtensionApi" }
 
 // app/build.gradle.kts
 dependencies {
