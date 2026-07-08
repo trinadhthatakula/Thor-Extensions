@@ -11,8 +11,8 @@
       "requiresLSPosed": true,
       "minThorVersionCode": 1900,
       "minSdk": 28,
-      "apkUrl": "",
-      "sha256": "",
+      "apkUrl": "https://github.com/trinadhthatakula/Thor-Extensions/releases/download/strombringer-v1.00.0/strombringer-1.00.0.apk",
+      "sha256": "f0257c13e33bc3412c99b1038d13c25d240e62e1c5b70ee69d2d08ddaab83c7b",
       "sourcePath": "verified/strombringer"
     },
     {
