@@ -7,7 +7,7 @@
         <!-- Thor extension entry -->
         <meta-data android:name="thor.extension.class"
             android:value="com.valhalla.thor.ext.strombringer.StrombringerExtension" />
-        <meta-data android:name="thor.extension.api.version" android:value="1" />
+        <meta-data android:name="thor.extension.api.version" android:value="2" />
 
         <!-- LSPosed module descriptor -->
         <meta-data android:name="xposedmodule" android:value="true" />

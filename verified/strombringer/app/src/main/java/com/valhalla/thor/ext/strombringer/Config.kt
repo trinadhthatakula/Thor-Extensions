@@ -39,10 +39,11 @@ object Config {
 }
 
 /**
- * Config store for Strombringer. Thor's ConfigurationScreen (in Thor's process) writes here via
- * contentResolver.call; the launcher hook (in the launcher's process) reads here the same way.
- * Backed by PRIVATE prefs — the cross-process reach is the exported provider IPC. The launcher is a
- * system app, so it can resolve this provider despite Android 11+ package visibility.
+ * Config store for Strombringer. Strombringer's own ConfigActivity (in this app's process) writes
+ * here via contentResolver.call; the launcher hook (in the launcher's process) and the system_server
+ * CorePatch hook read here the same way. Backed by PRIVATE prefs — the cross-process reach is the
+ * exported provider IPC. The launcher/system_server are system callers, so they can resolve this
+ * provider despite Android 11+ package visibility.
  */
 class StrombringerConfigProvider : ContentProvider() {
     override fun onCreate() = true
