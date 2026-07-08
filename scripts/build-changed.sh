@@ -94,7 +94,15 @@ else
     log "BUILD: $ext $version needs a release (tag $tag)"
     printf '%s\t%s\t%s\n' "$dir" "$version" "$tag"
 
-    entry="{\"ext\":\"${ext}\",\"dir\":\"${dir}\",\"version\":\"${version}\",\"tag\":\"${tag}\",\"apk_name\":\"${apk_name}\"}"
+    # Build the matrix entry with jq so any special characters in the values are
+    # properly JSON-escaped (raw string interpolation could emit malformed JSON).
+    entry="$(jq -cn \
+      --arg ext "$ext" \
+      --arg dir "$dir" \
+      --arg version "$version" \
+      --arg tag "$tag" \
+      --arg apk_name "$apk_name" \
+      '{ext:$ext,dir:$dir,version:$version,tag:$tag,apk_name:$apk_name}')"
     if [ -n "$json_entries" ]; then
       json_entries="${json_entries},${entry}"
     else

@@ -84,6 +84,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      # ---- HARD-FAIL: catalog stub must exist BEFORE anything else ---------
+      # The catalog "Update" step only mutates an EXISTING entry (matched by
+      # sourcePath). Without a stub, a brand-new extension would be released
+      # (tag + APK) yet never cataloged — undiscoverable, no failure, and
+      # build-changed.sh's tag check would then skip it forever. Fail here,
+      # before the build/tag/release, so a missing stub is caught early.
+      - name: Verify catalog stub exists
+        run: |
+          set -euo pipefail
+          jq -e --arg dir "$EXT_DIR" \
+            '.extensions[] | select(.sourcePath == $dir)' \
+            catalog/extensions.json >/dev/null \
+            || { echo "::error::No catalog/extensions.json entry for $EXT_DIR — add a stub entry (id/name/description/requiresLSPosed/sourcePath, empty apkUrl/sha256) before releasing."; exit 1; }
+          echo "Catalog stub present for $EXT_DIR."
+
       - name: Set up JDK 21 (Temurin)
         uses: actions/setup-java@v4
         with:
