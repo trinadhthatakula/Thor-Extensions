@@ -1,0 +1,17 @@
+# Signing key material — NEVER commit. Keys live outside all repos.
+**/keystore.properties
+**/*.jks
+
+# Local machine config
+**/local.properties
+
+# Build + tooling output
+**/build/
+**/.gradle/
+**/.kotlin/
+
+# IDE
+.idea/
+**/.idea/
+.DS_Store
+*.iml

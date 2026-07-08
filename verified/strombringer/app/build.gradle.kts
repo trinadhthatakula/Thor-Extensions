@@ -23,11 +23,11 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.valhalla.thor.ext.automation"
+    namespace = "com.valhalla.thor.ext.strombringer"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.valhalla.thor.ext.automation"
+        applicationId = "com.valhalla.thor.ext.strombringer"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1000
@@ -55,7 +55,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -81,7 +82,6 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.kotlinx.serialization.json)
@@ -92,4 +92,10 @@ dependencies {
     compileOnly(libs.thor.extension.api)
     // Asgard UI components — host (Thor) provides them at runtime; compileOnly keeps them out of the APK.
     compileOnly(libs.asgard)
+    // Xposed API — provided by the LSPosed framework at runtime; never bundled.
+    compileOnly(libs.xposed)
+
+    // Plain-JVM unit tests. `authorizes(...)` is the security gate; it stays Android-free so it
+    // runs on JUnit without Robolectric. No junit alias in the catalog yet — literal coord.
+    testImplementation("junit:junit:4.13.2")
 }

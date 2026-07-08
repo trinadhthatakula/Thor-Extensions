@@ -1,0 +1,24 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:hasCode="true"
+        android:label="Strombringer"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+        <!-- Thor extension entry -->
+        <meta-data android:name="thor.extension.class"
+            android:value="com.valhalla.thor.ext.strombringer.StrombringerExtension" />
+        <meta-data android:name="thor.extension.api.version" android:value="1" />
+
+        <!-- LSPosed module descriptor -->
+        <meta-data android:name="xposedmodule" android:value="true" />
+        <meta-data android:name="xposeddescription"
+            android:value="Auto-unfreeze suspended apps on launch (controlled from Thor)." />
+        <meta-data android:name="xposedminversion" android:value="82" />
+        <meta-data android:name="xposedscope" android:resource="@array/xposed_scope" />
+
+        <provider
+            android:name=".StrombringerConfigProvider"
+            android:authorities="com.valhalla.thor.ext.strombringer.config"
+            android:exported="true" />
+    </application>
+</manifest>
