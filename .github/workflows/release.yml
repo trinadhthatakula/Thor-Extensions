@@ -1,0 +1,209 @@
+name: Release verified extensions
+
+# Build, sign, PIN-VERIFY and publish verified Thor extensions.
+# Trigger: any push to main that touches verified/** (plus manual dispatch).
+#
+# Signing contract (Spec B §2, from F2a): each extension's `release`
+# signingConfig reads EXT_KEY_ALIAS / EXT_KEY_PASSWORD / EXT_KEYSTORE_PASSWORD
+# and storeFile = EXT_KEYSTORE_FILE_PATH. GitHub secrets provide these plus
+# EXT_KEYSTORE_BASE64 (the base64-encoded dedicated keystore).
+#
+# The dedicated key's certificate SHA-256 (the trust PIN) is hard-checked
+# after every build — a mispinned or unsigned APK FAILS the job and is never
+# released or written into the catalog.
+#
+# Security note: matrix / step-output values are passed to shell steps via
+# `env:` (never interpolated directly into run: scripts) so a crafted
+# versionName can never break out of the string it is meant to be.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "verified/**"
+  workflow_dispatch:
+
+# Serialize runs so catalog commits never race each other.
+concurrency:
+  group: release-verified-extensions
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Detect which verified extensions need a release (idempotent, tag-based).
+  # ---------------------------------------------------------------------------
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+      any: ${{ steps.detect.outputs.any }}
+    steps:
+      - name: Checkout (full history for tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed extensions
+        id: detect
+        run: bash scripts/build-changed.sh
+
+  # ---------------------------------------------------------------------------
+  # Build + sign + pin-verify + release + catalog, one job per changed ext.
+  # ---------------------------------------------------------------------------
+  release:
+    needs: detect
+    if: ${{ needs.detect.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      # max-parallel: 1 serializes the catalog commit-back to avoid push races.
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.detect.outputs.matrix) }}
+    env:
+      EXT_KEY_ALIAS: ${{ secrets.EXT_KEY_ALIAS }}
+      EXT_KEY_PASSWORD: ${{ secrets.EXT_KEY_PASSWORD }}
+      EXT_KEYSTORE_PASSWORD: ${{ secrets.EXT_KEYSTORE_PASSWORD }}
+      GH_TOKEN: ${{ github.token }}
+      # Trust PIN: cert SHA-256 of the dedicated "Thor Extensions" release key.
+      PIN: "762DC455D6F5CE05E7D1848057FDF04362D137B7AB987879AFDF370B10F9498C"
+      # Matrix values, surfaced as env so run: scripts never interpolate them
+      # directly (injection-safe).
+      EXT: ${{ matrix.ext }}
+      EXT_DIR: ${{ matrix.dir }}
+      EXT_VERSION: ${{ matrix.version }}
+      EXT_TAG: ${{ matrix.tag }}
+      EXT_APK_NAME: ${{ matrix.apk_name }}
+    steps:
+      - name: Checkout (full history for tags + catalog push)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Decode signing keystore
+        env:
+          EXT_KEYSTORE_BASE64: ${{ secrets.EXT_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          KEYSTORE_PATH="$RUNNER_TEMP/thor-extensions-release.jks"
+          printf '%s' "$EXT_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
+          # Export the ABSOLUTE path so the gradle signingConfig can find it.
+          echo "EXT_KEYSTORE_FILE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+
+      - name: Build release APK
+        working-directory: ${{ matrix.dir }}
+        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Locate signed APK
+        id: apk
+        run: |
+          set -euo pipefail
+          APK="$(find "$EXT_DIR/app/build/outputs/apk/release" -name '*.apk' | head -n1)"
+          if [ -z "$APK" ]; then
+            echo "::error::No release APK produced under $EXT_DIR/app/build/outputs/apk/release"
+            exit 1
+          fi
+          echo "path=$APK" >> "$GITHUB_OUTPUT"
+          echo "Found APK: $APK"
+
+      # ---- HARD-FAIL PIN GATE ---------------------------------------------
+      # Verify the APK's signer certificate SHA-256 equals the trust PIN.
+      # A mismatch (wrong key) or unsigned APK fails the job before any
+      # release or catalog write happens.
+      - name: Verify signer certificate against trust PIN
+        id: verify
+        env:
+          APK_PATH: ${{ steps.apk.outputs.path }}
+        run: |
+          set -euo pipefail
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner 2>/dev/null | sort -V | tail -n1)"
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner not found in $ANDROID_HOME/build-tools"
+            exit 1
+          fi
+          echo "Using apksigner: $APKSIGNER"
+          CERT_SHA="$(
+            "$APKSIGNER" verify --print-certs "$APK_PATH" \
+              | grep -i 'SHA-256 digest' \
+              | head -n1 \
+              | sed -E 's/.*digest:[[:space:]]*//' \
+              | tr -d ': ' \
+              | tr 'a-f' 'A-F'
+          )"
+          echo "APK signer cert SHA-256: $CERT_SHA"
+          echo "Trust PIN             : $PIN"
+          if [ "$CERT_SHA" != "$PIN" ]; then
+            echo "::error::Signer certificate SHA-256 does NOT match the trust PIN. Refusing to release $APK_PATH."
+            exit 1
+          fi
+          echo "PIN OK — certificate matches the dedicated Thor Extensions key."
+
+      - name: Stage release asset + compute file SHA-256
+        id: asset
+        env:
+          APK_PATH: ${{ steps.apk.outputs.path }}
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/$EXT_APK_NAME"
+          cp "$APK_PATH" "$OUT"
+          FILE_SHA="$(sha256sum "$OUT" | awk '{print $1}')"
+          echo "path=$OUT" >> "$GITHUB_OUTPUT"
+          echo "sha256=$FILE_SHA" >> "$GITHUB_OUTPUT"
+          echo "APK file SHA-256: $FILE_SHA"
+
+      - name: Create GitHub Release + upload APK
+        env:
+          ASSET_PATH: ${{ steps.asset.outputs.path }}
+          FILE_SHA: ${{ steps.asset.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          gh release create "$EXT_TAG" "$ASSET_PATH" \
+            --title "$EXT_TAG" \
+            --notes "Verified Thor extension ${EXT} v${EXT_VERSION}. Signed with the dedicated Thor Extensions key (cert SHA-256 pin-verified in CI). File SHA-256: ${FILE_SHA}"
+
+      - name: Update catalog entry
+        env:
+          FILE_SHA: ${{ steps.asset.outputs.sha256 }}
+          SERVER_URL: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          APK_URL="${SERVER_URL}/${REPO}/releases/download/${EXT_TAG}/${EXT_APK_NAME}"
+          jq \
+            --arg dir "$EXT_DIR" \
+            --arg ver "$EXT_VERSION" \
+            --arg url "$APK_URL" \
+            --arg sha "$FILE_SHA" \
+            '(.extensions[] | select(.sourcePath == $dir)) |= (.version = $ver | .apkUrl = $url | .sha256 = $sha)' \
+            catalog/extensions.json > catalog/extensions.json.tmp
+          mv catalog/extensions.json.tmp catalog/extensions.json
+          echo "Updated catalog entry for $EXT_DIR:"
+          jq --arg dir "$EXT_DIR" '.extensions[] | select(.sourcePath == $dir)' catalog/extensions.json
+
+      - name: Commit catalog back to main
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add catalog/extensions.json
+          if git diff --cached --quiet; then
+            echo "No catalog changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(catalog): ${EXT} v${EXT_VERSION} [skip ci]"
+          # Rebase onto any commit a previous matrix job just pushed, then push.
+          git pull --rebase origin main
+          git push origin HEAD:main
