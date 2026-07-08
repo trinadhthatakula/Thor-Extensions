@@ -55,6 +55,11 @@ android {
 
     buildTypes {
         release {
+            // Minification is safe now: the config UI runs in the extension's OWN process/activity,
+            // so no @Composable lambda or kotlin-stdlib type crosses into Thor. R8 only minifies this
+            // self-contained app (standard Compose consumer rules apply). The name-referenced entry
+            // points (Xposed entry, Thor metadata class, the config Activity + provider) are kept in
+            // proguard-rules.pro / auto-kept from the manifest.
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -76,26 +81,29 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.kotlinx.serialization.json)
+
+    // Compose + Asgard are BUNDLED. The config UI (ConfigActivity) renders in THIS app's OWN
+    // process — Thor launches it by Intent — so it needs its own full Compose/Asgard at runtime.
+    // Nothing @Composable crosses into Thor anymore, which is what makes the extension self-
+    // contained and immune to Thor's R8 (the old compileOnly + in-host-render model is gone).
+    implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
-    implementation(libs.kotlinx.serialization.json)
-    implementation("io.coil-kt.coil3:coil-compose:3.5.0")
+    implementation(libs.asgard)
 
-    // Thor extension contract. compileOnly: the host app provides these classes at runtime
-    // (extensions load into Thor's process), so they must NOT be bundled into the extension APK.
+    // Provided at runtime, NOT bundled:
+    //  • thor-extension-api — only StrombringerExtension (loaded in Thor's process) references
+    //    ThorExtension; parent-first classloading resolves it to Thor's copy.
+    //  • xposed — LSPosed provides it in system_server.
     compileOnly(libs.thor.extension.api)
-    // Asgard UI components — host (Thor) provides them at runtime; compileOnly keeps them out of the APK.
-    compileOnly(libs.asgard)
-    // Xposed API — provided by the LSPosed framework at runtime; never bundled.
     compileOnly(libs.xposed)
 
-    // Plain-JVM unit tests. `authorizes(...)` is the security gate; it stays Android-free so it
-    // runs on JUnit without Robolectric. No junit alias in the catalog yet — literal coord.
+    // Plain-JVM unit tests.
     testImplementation("junit:junit:4.13.2")
 }
