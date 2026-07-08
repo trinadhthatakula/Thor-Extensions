@@ -12,7 +12,7 @@ materialIcons = "1.7.8"
 lifecycleRuntimeKtx = "2.11.0"
 kotlinxSerializationJson = "1.11.0"
 thorExtensionApi = "3.0.0"
-asgardUi = "1.0.0"
+asgardUi = "2.0.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
