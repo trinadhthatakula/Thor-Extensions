@@ -1,0 +1,109 @@
+# Contributing an extension
+
+Thanks for building for [Thor](https://github.com/trinadhthatakula/Thor)! Start from the
+[`thor-extension-template`](https://github.com/trinadhthatakula/thor-extension-template) — it's a
+working example of everything below.
+
+## 1. Build against the API
+
+Depend on the contract **`compileOnly`** — Thor provides it at runtime, so you must not bundle it:
+
+```kotlin
+dependencies {
+    compileOnly("com.trinadhthatakula:thor-extension-api:3.0.0")
+}
+```
+
+Implement one of the contracts:
+
+- **`ThorExtension`** — metadata only (`name` / `description` / `version` / `author`). Thor loads
+  this class in **its own** process to list your extension, so keep it trivial: no Compose, no
+  Asgard, no privileged calls.
+- **`AutomationExtension : ThorExtension`** — adds `suspend fun onTrigger(...)`, called by Thor when
+  an automation event fires (alarms, shortcuts).
+- **`DebloatExtension : ThorExtension`** — a manufacturer debloat list (pure data).
+
+Declare your class in the manifest and start your package id with `com.valhalla.thor.ext.`:
+
+```xml
+<meta-data android:name="thor.extension.class"
+    android:value="com.valhalla.thor.ext.example.ExampleExtension" />
+<meta-data android:name="thor.extension.api.version" android:value="2" />
+```
+
+## 2. Configuration UI — render it in YOUR OWN process
+
+**Do not** try to render config UI inside Thor. Ship an exported `Activity` with an intent-filter
+for `ThorExtensionContract.ACTION_CONFIGURE` (`com.valhalla.thor.extension.action.CONFIGURE`); Thor
+launches it when the user taps *Configure*:
+
+```xml
+<activity android:name=".ConfigActivity" android:exported="true"
+    android:theme="@android:style/Theme.Translucent.NoTitleBar">
+    <intent-filter>
+        <action android:name="com.valhalla.thor.extension.action.CONFIGURE" />
+        <category android:name="android.intent.category.DEFAULT" />
+    </intent-filter>
+</activity>
+```
+
+Because it runs in your process, **bundle your own Compose/UI** (`implementation`, not
+`compileOnly`) and set `android.enableR8.fullMode=false` (R8 full-mode mis-optimizes Compose default
+args). Thor passes its theme as optional extras (`ThorExtensionContract.EXTRA_THEME_MODE` /
+`EXTRA_DYNAMIC_COLOR` / `EXTRA_AMOLED`) so you can match its look. Persist settings in your own
+`ContentProvider`/prefs, not Thor's.
+
+> The old `@Composable ConfigurationScreen` / `AppIcon()` helper were **removed in api 3.0.0**. If
+> you're upgrading from 2.x, move your config UI into your own Activity (see the template diff).
+
+## 3. Submit
+
+**Source-only (`unverified/`).** Open a PR adding your extension's source under `unverified/<name>/`.
+Because it isn't signed by the project's trust anchor, it loads only on **debug / self-built** Thor —
+users build it themselves. This is the path for third-party authors.
+
+**Verified (`verified/`).** Verified extensions are built and signed by the maintainer with the
+dedicated **"Thor Extensions"** key and listed in the catalog; you can't self-sign into `verified/`.
+To propose one, open a PR with the source under `verified/<name>/` **and a catalog stub** — CI
+**hard-fails** a release for a `verified/` extension that has no catalog entry:
+
+```json
+{
+  "id": "com.valhalla.thor.ext.<name>",
+  "name": "…", "description": "…", "author": "…",
+  "version": "1.00.0",
+  "verified": true,
+  "requiresLSPosed": false,
+  "minThorVersionCode": 1900,
+  "minSdk": 28,
+  "apkUrl": "", "sha256": "",
+  "sourcePath": "verified/<name>"
+}
+```
+
+Fill every field **except** `version` / `apkUrl` / `sha256` (CI writes those on release, matching on
+`sourcePath`).
+
+## 4. Releasing (verified extensions)
+
+CI releases automatically when a `verified/*` extension's `versionName` (in `app/build.gradle.kts`)
+is bumped and merged to `main`:
+
+1. `scripts/build-changed.sh` detects the changed extension and derives the tag
+   `<dir>-v<version>` (e.g. `strombringer-v1.00.0`) and asset `<dir>-<version>.apk`.
+2. The workflow builds `:app:assembleRelease`, signs with the dedicated key, and **rejects any APK
+   not signed by the pinned certificate** (`762DC455…F9498C`).
+3. It publishes a GitHub Release and writes the catalog entry's `version`, `apkUrl`, and `sha256`.
+
+Bumping the version but forgetting the catalog stub → the run hard-fails (by design, so nothing ends
+up released-but-uncatalogued). Re-releasing an already-tagged version is skipped (idempotent).
+
+## Checklist
+
+- [ ] `compileOnly("com.trinadhthatakula:thor-extension-api:3.0.0")`
+- [ ] package id starts with `com.valhalla.thor.ext.`
+- [ ] `thor.extension.class` + `thor.extension.api.version="2"` meta-data
+- [ ] config UI in your own exported `ConfigActivity` (CONFIGURE intent-filter), not in Thor
+- [ ] `android.enableR8.fullMode=false`
+- [ ] a LICENSE in your folder
+- [ ] (verified only) a catalog stub in `catalog/extensions.json`
