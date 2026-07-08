@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -329,7 +330,9 @@ private fun ClustersListScreen(
 ) {
     Scaffold(
         topBar = {
-            AsgardHeader(title = "App Clusters", onNavigateBack = onBack)
+            Box(Modifier.fillMaxWidth().statusBarsPadding()) {
+                AsgardHeader(title = "App Clusters", onNavigateBack = onBack)
+            }
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -477,7 +480,9 @@ private fun ClusterDetailsScreen(
 
     Scaffold(
         topBar = {
-            AsgardHeader(title = clusterName, onNavigateBack = onBack)
+            Box(Modifier.fillMaxWidth().statusBarsPadding()) {
+                AsgardHeader(title = clusterName, onNavigateBack = onBack)
+            }
         }
     ) { innerPadding ->
         Column(
@@ -744,10 +749,12 @@ private fun CreateEditClusterScreen(
 
     Scaffold(
         topBar = {
-            AsgardHeader(
-                title = if (editingCluster != null) "Edit Cluster" else "New Cluster",
-                onNavigateBack = onBack
-            )
+            Box(Modifier.fillMaxWidth().statusBarsPadding()) {
+                AsgardHeader(
+                    title = if (editingCluster != null) "Edit Cluster" else "New Cluster",
+                    onNavigateBack = onBack
+                )
+            }
         }
     ) { innerPadding ->
         Column(
