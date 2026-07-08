@@ -30,8 +30,8 @@ android {
         applicationId = "com.valhalla.thor.ext.automation"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 1000
-        versionName = "1.00.0"
+        versionCode = 1001
+        versionName = "1.00.1"
     }
 
     signingConfigs {
@@ -55,7 +55,12 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Minification is safe: the config UI runs in the extension's OWN process/activity, so no
+            // @Composable lambda or kotlin-stdlib type crosses into Thor. R8 only minifies this
+            // self-contained app. The name-referenced entry points (Thor metadata class, config
+            // Activity + provider, alarm receiver) are kept in proguard-rules.pro.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -87,9 +92,11 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation("io.coil-kt.coil3:coil-compose:3.5.0")
 
-    // Thor extension contract. compileOnly: the host app provides these classes at runtime
-    // (extensions load into Thor's process), so they must NOT be bundled into the extension APK.
+    // Thor extension contract. compileOnly: only AutomationCluster (loaded into Thor's process)
+    // references it, and parent-first classloading resolves it to Thor's copy — so it must NOT be
+    // bundled into the extension APK.
     compileOnly(libs.thor.extension.api)
-    // Asgard UI components — host (Thor) provides them at runtime; compileOnly keeps them out of the APK.
-    compileOnly(libs.asgard)
+    // Asgard UI components are now BUNDLED: the config UI (ConfigActivity) renders in THIS app's OWN
+    // process, so it needs its own full Asgard at runtime. Nothing @Composable crosses into Thor.
+    implementation(libs.asgard)
 }
