@@ -2,12 +2,10 @@ package com.valhalla.thor.ext.strombringer
 
 import android.content.Context
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,10 +18,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -53,19 +47,28 @@ import kotlin.math.roundToInt
  * full Compose/Asgard, so nothing crosses the boundary. All state travels over Strombringer's own
  * config provider IPC.
  */
+// Theme-hint extras Thor attaches to the CONFIGURE launch (mirror of ExtensionManager.EXTRA_*).
+private const val EXTRA_THEME_MODE = "com.valhalla.thor.extension.extra.THEME_MODE"
+private const val EXTRA_DYNAMIC_COLOR = "com.valhalla.thor.extension.extra.DYNAMIC_COLOR"
+private const val EXTRA_AMOLED = "com.valhalla.thor.extension.extra.AMOLED"
+
 class ConfigActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Thor passes its resolved theme so this UI (own process) matches Thor's look. Absent (e.g.
+        // launched directly via adb) -> null -> StrombringerTheme falls back to Thor's defaults.
+        val themeArgs = intent?.let {
+            if (it.hasExtra(EXTRA_THEME_MODE) || it.hasExtra(EXTRA_AMOLED)) {
+                ThemeArgs(
+                    themeMode = it.getStringExtra(EXTRA_THEME_MODE) ?: "SYSTEM",
+                    dynamicColor = it.getBooleanExtra(EXTRA_DYNAMIC_COLOR, false),
+                    amoled = it.getBooleanExtra(EXTRA_AMOLED, false),
+                )
+            } else null
+        }
         setContent {
-            val dark = isSystemInDarkTheme()
-            val colors = when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-                    if (dark) dynamicDarkColorScheme(this) else dynamicLightColorScheme(this)
-                dark -> darkColorScheme()
-                else -> lightColorScheme()
-            }
-            MaterialTheme(colorScheme = colors) {
+            StrombringerTheme(themeArgs) {
                 StrombringerConfigSheet(onDismiss = { finish() })
             }
         }
