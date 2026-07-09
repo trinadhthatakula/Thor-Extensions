@@ -1,7 +1,6 @@
 package com.valhalla.thor.ext.automation
 
 import android.content.Context
-import android.net.Uri
 import android.os.Bundle
 
 /**
@@ -19,9 +18,8 @@ object ThorOps {
         if (packages.isEmpty()) return false
         val extras = Bundle().apply { putStringArray(KEY_PACKAGES, packages.toTypedArray()) }
         for (thorPkg in Config.THOR_PACKAGES) {
-            val uri = Uri.parse("content://$thorPkg$AUTHORITY_SUFFIX")
             val ok = runCatching {
-                context.contentResolver.call(uri, action, null, extras)?.getBoolean(KEY_OK)
+                context.contentResolver.call("$thorPkg$AUTHORITY_SUFFIX", action, null, extras)?.getBoolean(KEY_OK)
             }.getOrNull()
             if (ok != null) return ok // provider resolved (this is the live Thor); use its verdict
         }
