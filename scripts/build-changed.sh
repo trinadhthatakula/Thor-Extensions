@@ -18,8 +18,10 @@
 #     that needs a release. Run it locally with no args for a dry-run:
 #       bash scripts/build-changed.sh
 #   - When $GITHUB_OUTPUT is set (running inside GitHub Actions) it also writes:
-#       matrix=<json>   a {"include":[ {ext,dir,version,tag,apk_name}, ... ]}
-#                       object suitable for `strategy.matrix`
+#       matrix=<json>   a {"include":[ {ext,dir,version,version_code,tag,apk_name}, ... ]}
+#                       object suitable for `strategy.matrix` (version_code is read from the
+#                       extension's build.gradle.kts, or "0" if absent, and drives the catalog's
+#                       versionCode for store update detection)
 #       any=true|false  whether anything needs building
 #
 # Fail-safe: a malformed extension directory is skipped with a warning, never
@@ -60,6 +62,15 @@ read_version() {
     | sed -E 's/.*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/'
 }
 
+# Extract the first  versionCode = N  (an unquoted integer) from a build.gradle.kts.
+# Prints nothing if absent; the catalog then keeps its previous versionCode.
+read_version_code() {
+  local gradle_file="$1"
+  grep -E 'versionCode[[:space:]]*=[[:space:]]*[0-9]+' "$gradle_file" 2>/dev/null \
+    | head -n1 \
+    | sed -E 's/.*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*/\1/'
+}
+
 json_entries=""
 any="false"
 
@@ -82,6 +93,11 @@ else
       continue
     fi
 
+    # versionCode drives the store's update detection (installed vs catalog). Default to 0
+    # (unknown -> the client never offers an update) if the gradle file omits it.
+    version_code="$(read_version_code "$gradle_file" || true)"
+    [ -n "$version_code" ] || version_code="0"
+
     tag="${ext}-v${version}"
     apk_name="${ext}-${version}.apk"
     dir="${VERIFIED_DIR}/${ext}"
@@ -100,9 +116,10 @@ else
       --arg ext "$ext" \
       --arg dir "$dir" \
       --arg version "$version" \
+      --arg version_code "$version_code" \
       --arg tag "$tag" \
       --arg apk_name "$apk_name" \
-      '{ext:$ext,dir:$dir,version:$version,tag:$tag,apk_name:$apk_name}')"
+      '{ext:$ext,dir:$dir,version:$version,version_code:$version_code,tag:$tag,apk_name:$apk_name}')"
     if [ -n "$json_entries" ]; then
       json_entries="${json_entries},${entry}"
     else

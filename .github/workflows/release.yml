@@ -76,6 +76,7 @@ jobs:
       EXT: ${{ matrix.ext }}
       EXT_DIR: ${{ matrix.dir }}
       EXT_VERSION: ${{ matrix.version }}
+      EXT_VERSION_CODE: ${{ matrix.version_code }}
       EXT_TAG: ${{ matrix.tag }}
       EXT_APK_NAME: ${{ matrix.apk_name }}
     steps:
@@ -200,9 +201,10 @@ jobs:
           jq \
             --arg dir "$EXT_DIR" \
             --arg ver "$EXT_VERSION" \
+            --arg vcode "$EXT_VERSION_CODE" \
             --arg url "$APK_URL" \
             --arg sha "$FILE_SHA" \
-            '(.extensions[] | select(.sourcePath == $dir)) |= (.version = $ver | .apkUrl = $url | .sha256 = $sha)' \
+            '(.extensions[] | select(.sourcePath == $dir)) |= (.version = $ver | .versionCode = ($vcode | tonumber) | .apkUrl = $url | .sha256 = $sha)' \
             catalog/extensions.json > catalog/extensions.json.tmp
           mv catalog/extensions.json.tmp catalog/extensions.json
           echo "Updated catalog entry for $EXT_DIR:"

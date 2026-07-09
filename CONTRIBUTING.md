@@ -72,6 +72,7 @@ To propose one, open a PR with the source under `verified/<name>/` **and a catal
   "id": "com.valhalla.thor.ext.<name>",
   "name": "…", "description": "…", "author": "…",
   "version": "1.00.0",
+  "versionCode": 0,
   "verified": true,
   "requiresLSPosed": false,
   "minThorVersionCode": 1900,
@@ -81,19 +82,25 @@ To propose one, open a PR with the source under `verified/<name>/` **and a catal
 }
 ```
 
-Fill every field **except** `version` / `apkUrl` / `sha256` (CI writes those on release, matching on
-`sourcePath`).
+Fill every field **except** `version` / `versionCode` / `apkUrl` / `sha256` (CI writes those on
+release from your `app/build.gradle.kts`, matching on `sourcePath`). `versionCode` drives the store's
+**update detection**, so it must increase on every release you want users to be offered.
 
 ## 4. Releasing (verified extensions)
 
 CI releases automatically when a `verified/*` extension's `versionName` (in `app/build.gradle.kts`)
-is bumped and merged to `main`:
+is bumped and merged to `main`. **Bump `versionCode` in the same commit** — the release is *triggered*
+by the `versionName` tag, but the store's update detection compares `versionCode`, so a
+`versionCode`-only change would be skipped (its tag already exists) while a `versionName`-only change
+would release without any device being offered the update:
 
-1. `scripts/build-changed.sh` detects the changed extension and derives the tag
-   `<dir>-v<version>` (e.g. `strombringer-v1.00.0`) and asset `<dir>-<version>.apk`.
+1. `scripts/build-changed.sh` detects the changed extension, derives the tag `<dir>-v<version>`
+   (e.g. `strombringer-v1.00.0`) and asset `<dir>-<version>.apk`, and reads `versionCode` from
+   `app/build.gradle.kts`.
 2. The workflow builds `:app:assembleRelease`, signs with the dedicated key, and **rejects any APK
    not signed by the pinned certificate** (`762DC455…F9498C`).
-3. It publishes a GitHub Release and writes the catalog entry's `version`, `apkUrl`, and `sha256`.
+3. It publishes a GitHub Release and writes the catalog entry's `version`, `versionCode`, `apkUrl`,
+   and `sha256`.
 
 Bumping the version but forgetting the catalog stub → the run hard-fails (by design, so nothing ends
 up released-but-uncatalogued). Re-releasing an already-tagged version is skipped (idempotent).
