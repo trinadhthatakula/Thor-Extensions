@@ -105,6 +105,22 @@ would release without any device being offered the update:
 Bumping the version but forgetting the catalog stub → the run hard-fails (by design, so nothing ends
 up released-but-uncatalogued). Re-releasing an already-tagged version is skipped (idempotent).
 
+## Requesting privileged operations from Thor
+
+Extensions don't run code inside Thor. To perform a privileged package action, call Thor's
+`ExtensionOpsProvider` (Thor cold-starts if needed):
+
+- **URI:** `content://<thorPackage>.extensionops` — try `com.valhalla.thor`, then `com.valhalla.thor.debug`.
+- **method:** `"freeze"` | `"unfreeze"` | `"toggle"`
+- **extras:** `Bundle { putStringArray("packages", …) }`
+- **returns:** `Bundle { "ok": Boolean, "count": Int }`
+
+Thor verifies the caller is a pinned-signer extension (debug builds relax this), runs the op mode-aware
+(honouring the user's Freeze/Suspend setting), and never operates on Thor's own or your package. Call it
+OFF the main thread (`ContentResolver.call` is a synchronous IPC). Your app needs no special permission —
+just package visibility (declare `<queries><package android:name="com.valhalla.thor"/></queries>` or hold
+`QUERY_ALL_PACKAGES`). See `verified/thor-automation-extension` (`ThorOps.kt`) for a reference client.
+
 ## Checklist
 
 - [ ] `compileOnly("com.trinadhthatakula:thor-extension-api:3.0.0")`
