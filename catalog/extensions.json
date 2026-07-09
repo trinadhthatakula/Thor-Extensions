@@ -6,14 +6,14 @@
       "name": "Strombringer",
       "description": "Auto-unfreeze suspended apps on launch, plus CorePatch signature-bypass (danger zone). Requires LSPosed.",
       "author": "Thor",
-      "version": "1.00.0",
-      "versionCode": 1000,
+      "version": "1.00.1",
+      "versionCode": 1001,
       "verified": true,
       "requiresLSPosed": true,
       "minThorVersionCode": 1900,
       "minSdk": 28,
-      "apkUrl": "https://github.com/trinadhthatakula/Thor-Extensions/releases/download/strombringer-v1.00.0/strombringer-1.00.0.apk",
-      "sha256": "f0257c13e33bc3412c99b1038d13c25d240e62e1c5b70ee69d2d08ddaab83c7b",
+      "apkUrl": "https://github.com/trinadhthatakula/Thor-Extensions/releases/download/strombringer-v1.00.1/strombringer-1.00.1.apk",
+      "sha256": "91a4d2a74671d63dbcdd11222010c478d951574dfe037a7ffeb13529ccace373",
       "sourcePath": "verified/strombringer"
     },
     {
