@@ -19,9 +19,9 @@ data class AppCluster(
 
 /**
  * Metadata surface Thor loads (by `thor.extension.class`) to list this extension + offer Configure.
- * It NO LONGER implements AutomationExtension/onTrigger: Thor never runs extension code now — the
- * extension calls Thor's ExtensionOpsProvider instead (see the 2026-07-09 ops-provider design). Kept as
- * a plain ThorExtension (metadata only), like StrombringerExtension.
+ * Thor never runs extension code now — the extension calls Thor's ExtensionOpsProvider instead (see the
+ * 2026-07-09 ops-provider design), so this exposes no runtime trigger hooks. Kept as a plain
+ * [ThorExtension] (metadata only), like StrombringerExtension.
  */
 @Suppress("unused")
 class AutomationCluster : ThorExtension {

@@ -110,10 +110,10 @@ import java.util.Calendar
  * full Compose/Asgard, so nothing crosses the boundary.
  *
  * Two consequences of running out-of-process, handled below:
- *  • No ShellExecutor here — live freeze/unfreeze is forwarded to Thor via the same secure broadcast
- *    [AlarmReceiver] uses ([triggerThor]); frozen-state is read locally via PackageManager.
+ *  • No ShellExecutor here — live freeze/unfreeze is forwarded to Thor's ExtensionOpsProvider (see
+ *    [ThorOps]), the same path [AlarmReceiver] uses; frozen-state is read locally via PackageManager.
  *  • Cluster persistence goes through [AutomationConfigProvider]'s private prefs (same process, so the
- *    Activity reads/writes them directly), which is exactly what [AutomationCluster.onTrigger] reads.
+ *    Activity reads/writes them directly); [AlarmReceiver] reads the same prefs to resolve packages.
  */
 class ConfigActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -147,26 +147,12 @@ private fun loadClusters(context: Context): List<AppCluster> {
     return runCatching { Json.decodeFromString<List<AppCluster>>(json) }.getOrDefault(emptyList())
 }
 
-/** Persists the cluster list to the config prefs; [AutomationCluster.onTrigger] reads it via IPC. */
+/** Persists the cluster list to the config prefs; [AlarmReceiver] reads it back to resolve packages. */
 private fun saveClusters(context: Context, clusters: List<AppCluster>) {
     context.getSharedPreferences(Config.PREFS, Context.MODE_PRIVATE)
         .edit()
         .putString(Config.KEY_SAVED_CLUSTERS, Json.encodeToString(clusters))
         .apply()
-}
-
-/**
- * Forwards a live action to Thor over the same secure broadcast [AlarmReceiver] uses. This process has
- * no root/ShellExecutor, so freeze/unfreeze must run in Thor. [triggerId] is `"<action>:<clusterName>"`
- * (e.g. `"freeze:Games"`), matching what [AutomationCluster.onTrigger] parses.
- */
-private fun triggerThor(context: Context, triggerId: String) {
-    val intent = Intent("com.valhalla.thor.action.TRIGGER_EXTENSION").apply {
-        setPackage("com.valhalla.thor")
-        putExtra("extension_class", "com.valhalla.thor.ext.automation.AutomationCluster")
-        putExtra("trigger_id", triggerId)
-    }
-    context.sendBroadcast(intent, "com.valhalla.thor.permission.TRIGGER_EXTENSION")
 }
 
 /** True if [pkg] is currently frozen (disabled), read locally without root. */
@@ -248,12 +234,12 @@ private fun AutomationConfigRoot(onExit: () -> Unit) {
                     editingClusterName = null
                     currentScreen = AutoScreen.CREATE_EDIT_CLUSTER
                 },
-                onFreezeCluster = { name, _ ->
-                    triggerThor(context, "freeze:$name")
+                onFreezeCluster = { name, packages ->
+                    scope.launch(Dispatchers.IO) { ThorOps.run(context, "freeze", packages) }
                     Toast.makeText(context, "Freezing $name…", Toast.LENGTH_SHORT).show()
                 },
-                onUnfreezeCluster = { name, _ ->
-                    triggerThor(context, "unfreeze:$name")
+                onUnfreezeCluster = { name, packages ->
+                    scope.launch(Dispatchers.IO) { ThorOps.run(context, "unfreeze", packages) }
                     Toast.makeText(context, "Unfreezing $name…", Toast.LENGTH_SHORT).show()
                 }
             )
@@ -475,6 +461,7 @@ private fun ClusterDetailsScreen(
 ) {
     val clusterName = cluster.name
     val packageList = cluster.packages
+    val scope = rememberCoroutineScope()
     var isScheduled by remember(cluster) { mutableStateOf(cluster.isScheduled) }
     var refreshTrigger by remember { mutableStateOf(0) }
 
@@ -512,7 +499,7 @@ private fun ClusterDetailsScreen(
                     icon = Icons.Default.Lock,
                     label = "Freeze",
                     onClick = {
-                        triggerThor(context, "freeze:$clusterName")
+                        scope.launch(Dispatchers.IO) { ThorOps.run(context, "freeze", cluster.packages) }
                         Toast.makeText(context, "Freezing cluster…", Toast.LENGTH_SHORT).show()
                         refreshTrigger++
                     },
@@ -523,7 +510,7 @@ private fun ClusterDetailsScreen(
                     icon = Icons.Default.Refresh,
                     label = "Unfreeze",
                     onClick = {
-                        triggerThor(context, "unfreeze:$clusterName")
+                        scope.launch(Dispatchers.IO) { ThorOps.run(context, "unfreeze", cluster.packages) }
                         Toast.makeText(context, "Unfreezing cluster…", Toast.LENGTH_SHORT).show()
                         refreshTrigger++
                     }
