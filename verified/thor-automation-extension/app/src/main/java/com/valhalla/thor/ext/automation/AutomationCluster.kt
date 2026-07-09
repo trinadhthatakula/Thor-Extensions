@@ -7,6 +7,8 @@ import android.net.Uri
 import com.valhalla.thor.extension.api.AutomationExtension
 import com.valhalla.thor.extension.api.ExtensionDataStore
 import com.valhalla.thor.extension.api.ShellExecutor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -98,10 +100,12 @@ class AutomationCluster : AutomationExtension {
      * call is the only path that reaches those writes. Returns null on any failure so the caller can
      * fall back to the host dataStore.
      */
-    private fun readSavedClusters(context: Context): String? = runCatching {
-        val uri = Uri.parse("content://" + Config.AUTHORITY)
-        context.contentResolver
-            .call(uri, "getString", Config.KEY_SAVED_CLUSTERS, null)
-            ?.getString("value")
-    }.getOrNull()
+    private suspend fun readSavedClusters(context: Context): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val uri = Uri.parse("content://" + Config.AUTHORITY)
+            context.contentResolver
+                .call(uri, "getString", Config.KEY_SAVED_CLUSTERS, null)
+                ?.getString("value")
+        }.getOrNull()
+    }
 }

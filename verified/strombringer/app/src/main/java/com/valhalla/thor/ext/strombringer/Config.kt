@@ -5,7 +5,9 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import android.net.Uri
+import android.os.Binder
 import android.os.Bundle
+import android.os.Process
 import android.os.SystemClock
 
 object Config {
@@ -49,15 +51,23 @@ class StrombringerConfigProvider : ContentProvider() {
     override fun onCreate() = true
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle {
-        val ctx = context!!
+        val ctx = context ?: return Bundle()
         val prefs = ctx.getSharedPreferences(Config.PREFS, Context.MODE_PRIVATE)
         val out = Bundle()
         // The key is the `arg`. Defaults to KEY_AUTO_UNFREEZE so the legacy launcher-hook caller
-        // (which passes arg=null) keeps reading/writing the auto-unfreeze flag unchanged.
+        // (which passes arg=null) keeps READING the auto-unfreeze flag unchanged; writes are now
+        // restricted to Strombringer's own process (see requireOwnProcessWriter).
         val key = arg ?: Config.KEY_AUTO_UNFREEZE
         when (method) {
             "set" -> {
-                val value = extras?.getBoolean("value") == true
+                requireOwnProcessWriter()
+                // Only honour a supplied "value"; a missing key returns false from getBoolean and
+                // would silently clobber the real setting, so fall back to the key's default instead.
+                val value = if (extras?.containsKey("value") == true) {
+                    extras.getBoolean("value")
+                } else {
+                    boolDefault(key)
+                }
                 val editor = prefs.edit().putBoolean(key, value)
                 // GLOBAL CorePatch: stamp/clear the auto-off timer authoritatively HERE so the UI can
                 // never forget it. elapsedRealtime() shares the device boot clock with the
@@ -71,7 +81,17 @@ class StrombringerConfigProvider : ContentProvider() {
                 editor.apply()
             }
             "get" -> out.putBoolean("value", prefs.getBoolean(key, boolDefault(key)))
-            "setInt" -> prefs.edit().putInt(key, extras?.getInt("value") ?: intDefault(key)).apply()
+            "setInt" -> {
+                requireOwnProcessWriter()
+                // getInt returns 0 for a MISSING key, so only write when "value" was actually
+                // supplied; otherwise keep the stored value by writing the key's own default.
+                val value = if (extras?.containsKey("value") == true) {
+                    extras.getInt("value")
+                } else {
+                    intDefault(key)
+                }
+                prefs.edit().putInt(key, value).apply()
+            }
             "getInt" -> out.putInt("value", prefs.getInt(key, intDefault(key)))
             // One-shot typed read for the M3 hook: everything it needs in a single IPC.
             "getCorePatchState" -> {
@@ -88,6 +108,29 @@ class StrombringerConfigProvider : ContentProvider() {
             }
         }
         return out
+    }
+
+    /**
+     * Writes here are privileged: `core_patch_enabled` arms a GLOBAL install-time signature bypass
+     * and `auto_unfreeze` changes launch behaviour, so an arbitrary app must never be able to flip
+     * them. The ONLY legitimate writer is Strombringer's own config UI, which runs in THIS process.
+     *
+     * We gate WRITES on the KERNEL-attested calling UID, NOT getCallingPackage(): that package is
+     * derived from the caller-supplied AttributionSource and can be null/absent for a cross-process
+     * caller, so a package check that admits a null caller (to let the same-process UI through) would
+     * also admit a crafted cross-process call with no attribution — a full bypass of this gate on an
+     * exported, permission-less provider. Binder.getCallingUid() cannot be spoofed or nulled: a
+     * genuine same-process call (our own ConfigActivity, no inbound binder transaction) reports
+     * Process.myUid(); every cross-process caller reports a different UID.
+     *
+     * READS stay OPEN because the launcher hook and the system_server CorePatch hook legitimately
+     * read this provider yet are neither Thor nor us (and reads only reveal whether a flag is on;
+     * Android 11+ package visibility already blocks arbitrary apps from resolving the provider).
+     */
+    private fun requireOwnProcessWriter() {
+        if (Binder.getCallingUid() != Process.myUid()) {
+            throw SecurityException("Unauthorized writer uid=${Binder.getCallingUid()}")
+        }
     }
 
     /** Per-key boolean default. Preserves legacy false for auto_unfreeze/core_patch_enabled. */

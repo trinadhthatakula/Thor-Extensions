@@ -36,13 +36,25 @@ class AutomationConfigProvider : ContentProvider() {
     override fun onCreate() = true
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle {
-        val ctx = context!!
+        val ctx = context ?: return Bundle()
+        // Security: the provider is exported so Thor (AutomationCluster.onTrigger runs in Thor's
+        // process) and this extension's own config UI can reach it — but NOT arbitrary apps.
+        // getCallingPackage() is attested by the system against the caller's UID, so it's a
+        // trustworthy allowlist gate. A null caller means a same-process call (our own config UI).
+        val caller = callingPackage
+        if (caller != null && caller != ctx.packageName && caller !in Config.THOR_PACKAGES) {
+            throw SecurityException("Unauthorized caller: $caller")
+        }
         val prefs = ctx.getSharedPreferences(Config.PREFS, Context.MODE_PRIVATE)
         val out = Bundle()
         // The key is the `arg`; defaults to the cluster-list key so a null-arg caller keeps working.
         val key = arg ?: Config.KEY_SAVED_CLUSTERS
         when (method) {
-            "setString" -> prefs.edit().putString(key, extras?.getString("value")).apply()
+            // Only write when the caller actually supplied "value" — a missing key would clobber the
+            // saved cluster list with null.
+            "setString" -> if (extras?.containsKey("value") == true) {
+                prefs.edit().putString(key, extras.getString("value")).apply()
+            }
             "getString" -> out.putString("value", prefs.getString(key, null))
         }
         return out

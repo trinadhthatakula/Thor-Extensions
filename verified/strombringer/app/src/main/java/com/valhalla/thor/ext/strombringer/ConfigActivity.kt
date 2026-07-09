@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -33,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.valhalla.asgard.components.AsgardLabeledSlider
 import com.valhalla.asgard.components.AsgardSettingToggleRow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
@@ -87,6 +90,7 @@ private data class CorePatchState(
 private fun StrombringerConfigSheet(onDismiss: () -> Unit) {
     val ctx = LocalContext.current
     val uri = Uri.parse("content://" + Config.AUTHORITY)
+    val scope = rememberCoroutineScope()
 
     var autoUnfreeze by remember {
         mutableStateOf(getBool(ctx, uri, "get", Config.KEY_AUTO_UNFREEZE))
@@ -126,7 +130,9 @@ private fun StrombringerConfigSheet(onDismiss: () -> Unit) {
                 subtitle = "Tap a suspended app's icon to unsuspend and open it.",
                 checked = autoUnfreeze,
                 onCheckedChange = { v ->
-                    autoUnfreeze = v; setBool(ctx, uri, "set", Config.KEY_AUTO_UNFREEZE, v)
+                    // Persist off the UI thread — a ContentResolver.call is a synchronous IPC.
+                    autoUnfreeze = v
+                    scope.launch(Dispatchers.IO) { setBool(ctx, uri, "set", Config.KEY_AUTO_UNFREEZE, v) }
                 },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -141,7 +147,10 @@ private fun StrombringerConfigSheet(onDismiss: () -> Unit) {
                         showCorePatchConfirm = true
                     } else {
                         // Kill-switch: disabling takes effect immediately, no confirmation.
-                        corePatch = false; setBool(ctx, uri, "set", Config.KEY_CORE_PATCH_ENABLED, false)
+                        corePatch = false
+                        scope.launch(Dispatchers.IO) {
+                            setBool(ctx, uri, "set", Config.KEY_CORE_PATCH_ENABLED, false)
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -156,7 +165,8 @@ private fun StrombringerConfigSheet(onDismiss: () -> Unit) {
                             "it manually.",
                     checked = autoOff,
                     onCheckedChange = { v ->
-                        autoOff = v; setBool(ctx, uri, "set", Config.KEY_AUTO_OFF_ENABLED, v)
+                        autoOff = v
+                        scope.launch(Dispatchers.IO) { setBool(ctx, uri, "set", Config.KEY_AUTO_OFF_ENABLED, v) }
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -168,9 +178,11 @@ private fun StrombringerConfigSheet(onDismiss: () -> Unit) {
                             autoOffMinutes = f.roundToInt()
                                 .coerceIn(Config.AUTO_OFF_MIN_MINUTES, Config.AUTO_OFF_MAX_MINUTES)
                         },
-                        // Persist only when the drag ends — avoids an IPC per frame.
+                        // Persist only when the drag ends — avoids an IPC per frame — off the UI thread.
                         onValueChangeFinished = {
-                            setInt(ctx, uri, "setInt", Config.KEY_AUTO_OFF_MINUTES, autoOffMinutes)
+                            scope.launch(Dispatchers.IO) {
+                                setInt(ctx, uri, "setInt", Config.KEY_AUTO_OFF_MINUTES, autoOffMinutes)
+                            }
                         },
                         valueRange = Config.AUTO_OFF_MIN_MINUTES.toFloat()..
                                 Config.AUTO_OFF_MAX_MINUTES.toFloat(),
@@ -188,7 +200,9 @@ private fun StrombringerConfigSheet(onDismiss: () -> Unit) {
             onConfirm = {
                 showCorePatchConfirm = false
                 corePatch = true
-                setBool(ctx, uri, "set", Config.KEY_CORE_PATCH_ENABLED, true)
+                scope.launch(Dispatchers.IO) {
+                    setBool(ctx, uri, "set", Config.KEY_CORE_PATCH_ENABLED, true)
+                }
             }
         )
     }
