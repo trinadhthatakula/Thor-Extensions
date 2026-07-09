@@ -6,11 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import android.content.pm.ShortcutInfo
-import android.content.pm.ShortcutManager
 import android.graphics.Bitmap
-import android.graphics.drawable.Icon
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -54,7 +50,6 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -513,31 +508,6 @@ private fun ClusterDetailsScreen(
                         scope.launch(Dispatchers.IO) { ThorOps.run(context, "unfreeze", cluster.packages) }
                         Toast.makeText(context, "Unfreezing cluster…", Toast.LENGTH_SHORT).show()
                         refreshTrigger++
-                    }
-                )
-
-                AsgardActionItem(
-                    icon = Icons.Default.Share,
-                    label = "Shortcut",
-                    onClick = {
-                        val shortcutManager = context.getSystemService(ShortcutManager::class.java)
-                        if (shortcutManager != null && shortcutManager.isRequestPinShortcutSupported) {
-                            val intent = Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse("thor://extension/trigger?class=com.valhalla.thor.ext.automation.AutomationCluster&triggerId=toggle:$clusterName")
-                            )
-                            val shortcut = ShortcutInfo.Builder(context, "shortcut:$clusterName")
-                                .setShortLabel(clusterName)
-                                .setLongLabel("Toggle $clusterName")
-                                .setIcon(Icon.createWithResource(context, android.R.drawable.ic_lock_power_off))
-                                .setIntent(intent)
-                                .build()
-
-                            shortcutManager.requestPinShortcut(shortcut, null)
-                            Toast.makeText(context, "Requesting shortcut pinning", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "Shortcut pinning not supported", Toast.LENGTH_SHORT).show()
-                        }
                     }
                 )
 

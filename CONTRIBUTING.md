@@ -19,8 +19,10 @@ Implement one of the contracts:
 - **`ThorExtension`** — metadata only (`name` / `description` / `version` / `author`). Thor loads
   this class in **its own** process to list your extension, so keep it trivial: no Compose, no
   Asgard, no privileged calls.
-- **`AutomationExtension : ThorExtension`** — adds `suspend fun onTrigger(...)`, called by Thor when
-  an automation event fires (alarms, shortcuts).
+- **`AutomationExtension : ThorExtension`** — **deprecated/retired.** Its `suspend fun onTrigger(...)`
+  ran extension code inside Thor's process; Thor no longer does that. Perform privileged package
+  actions via Thor's `ExtensionOpsProvider` instead — see "Requesting privileged operations from
+  Thor" below.
 - **`DebloatExtension : ThorExtension`** — a manufacturer debloat list (pure data).
 
 Declare your class in the manifest and start your package id with `com.valhalla.thor.ext.`:
