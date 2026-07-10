@@ -1,0 +1,238 @@
+### Installer-spoof slice — code review (Tasks 2-4), Stormbringer repo f3cb15a..b79ac31
+b79ac31 feat(stormbringer): Thor config app-picker for installer spoof
+bfdb506 feat(stormbringer): run installer-spoof hook per scoped app
+01429a9 feat(stormbringer): installer-spoof hook (getInstallerPackageName/getInstallSourceInfo -> Play)
+
+ .../thor/ext/stormbringer/InstallerSpoofHook.kt    | 44 ++++++++++
+ .../thor/ext/stormbringer/StormbringerExtension.kt | 99 ++++++++++++++++------
+ .../valhalla/thor/ext/stormbringer/XposedEntry.kt  | 11 +++
+ 3 files changed, 130 insertions(+), 24 deletions(-)
+
+diff --git a/app/src/main/java/com/valhalla/thor/ext/stormbringer/InstallerSpoofHook.kt b/app/src/main/java/com/valhalla/thor/ext/stormbringer/InstallerSpoofHook.kt
+new file mode 100644
+index 0000000..fbb38a4
+--- /dev/null
++++ b/app/src/main/java/com/valhalla/thor/ext/stormbringer/InstallerSpoofHook.kt
+@@ -0,0 +1,44 @@
++package com.valhalla.thor.ext.stormbringer
++
++import android.content.Context
++import android.net.Uri
++import de.robv.android.xposed.XC_MethodHook
++import de.robv.android.xposed.XposedHelpers
++
++/** Runs in a TARGET app's process; if that app is in the user's spoof set, makes the installer
++ *  getters report Play. All reflection is guarded so a miss never crashes the host app. */
++class InstallerSpoofHook(private val cl: ClassLoader) {
++
++    fun startIfSpoofed(ctx: Context) {
++        if (ctx.packageName !in spoofSet(ctx)) return
++        val pmClass = runCatching {
++            XposedHelpers.findClass("android.app.ApplicationPackageManager", cl)
++        }.getOrNull() ?: return
++
++        val returnPlay = object : XC_MethodHook() {
++            override fun afterHookedMethod(p: MethodHookParam) { p.result = Config.PLAY }
++        }
++        // Deprecated but still widely used (API 30-): String getInstallerPackageName(String)
++        runCatching {
++            XposedHelpers.findAndHookMethod(pmClass, "getInstallerPackageName", String::class.java, returnPlay)
++        }
++
++        // API 30+: InstallSourceInfo getInstallSourceInfo(String) — rewrite its installing package.
++        runCatching {
++            XposedHelpers.findAndHookMethod(pmClass, "getInstallSourceInfo", String::class.java,
++                object : XC_MethodHook() {
++                    override fun afterHookedMethod(p: MethodHookParam) {
++                        val info = p.result ?: return
++                        // InstallSourceInfo is final; overwrite its private installing/initiating fields.
++                        runCatching { XposedHelpers.setObjectField(info, "mInstallingPackageName", Config.PLAY) }
++                        runCatching { XposedHelpers.setObjectField(info, "mInitiatingPackageName", Config.PLAY) }
++                    }
++                })
++        }
++    }
++
++    private fun spoofSet(ctx: Context): Set<String> = runCatching {
++        ctx.contentResolver.call(Uri.parse("content://${Config.AUTHORITY}"), "getSpoofSet", null, null)
++            ?.getStringArray("value")?.toSet().orEmpty()
++    }.getOrDefault(emptySet())
++}
+diff --git a/app/src/main/java/com/valhalla/thor/ext/stormbringer/StormbringerExtension.kt b/app/src/main/java/com/valhalla/thor/ext/stormbringer/StormbringerExtension.kt
+index aeb0e8f..a6023d7 100644
+--- a/app/src/main/java/com/valhalla/thor/ext/stormbringer/StormbringerExtension.kt
++++ b/app/src/main/java/com/valhalla/thor/ext/stormbringer/StormbringerExtension.kt
+@@ -1,70 +1,121 @@
+ @file:Suppress("unused")
+ 
+ package com.valhalla.thor.ext.stormbringer
+ 
++import android.content.Context
++import android.content.pm.ApplicationInfo
+ import android.net.Uri
+ import android.os.Bundle
+-import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.items
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.unit.dp
+ import com.valhalla.asgard.components.AsgardHeader
+ import com.valhalla.asgard.components.AsgardSettingToggleRow
+ import com.valhalla.thor.extension.api.AutomationExtension
+ import com.valhalla.thor.extension.api.ExtensionDataStore
+ import com.valhalla.thor.extension.api.ShellExecutor
+ 
+ /**
+- * Thor-side surface for Stormbringer. Renders IN Thor's process (loaded via PathClassLoader).
+- * Reads/writes the auto-unfreeze flag through Stormbringer's own config ContentProvider over IPC —
+- * NOT `dataStore` (which writes Thor's store, unreadable by the launcher-process hook).
++ * Thor-side surface for Stormbringer (renders IN Thor's process). Reads/writes both the
++ * auto-unfreeze flag and the installer-spoof package set through Stormbringer's config provider
++ * over IPC. Uses Thor's context (which holds QUERY_ALL_PACKAGES) to list installable apps.
+  */
+ class StormbringerExtension : AutomationExtension {
+     override val name = "Stormbringer"
+     override val description = "Auto-unfreeze suspended apps on launch (requires LSPosed)."
+     override val version = "1.00.0"
+     override val author = "Thor"
+ 
+     override suspend fun onTrigger(
+-        context: android.content.Context, eventType: String,
++        context: Context, eventType: String,
+         shellExecutor: ShellExecutor, dataStore: ExtensionDataStore
+     ) {
+         // No event-driven behavior — Stormbringer acts through its LSPosed hooks.
+     }
+ 
+     @Composable
+     override fun ConfigurationScreen(
+         shellExecutor: ShellExecutor, dataStore: ExtensionDataStore, onBack: () -> Unit
+     ) {
+         val ctx = LocalContext.current
+         val uri = Uri.parse("content://" + Config.AUTHORITY)
+-        var enabled by remember {
+-            mutableStateOf(
+-                runCatching {
+-                    ctx.contentResolver.call(uri, "get", null, null)?.getBoolean("value") == true
+-                }.getOrDefault(false)
+-            )
++
++        var autoUnfreeze by remember { mutableStateOf(getBool(ctx, uri, "get")) }
++        var spoofSet by remember { mutableStateOf(getSpoofSet(ctx, uri)) }
++        val userApps = remember { userApps(ctx) }
++
++        LazyColumn {
++            item {
++                AsgardHeader(title = "Stormbringer", onNavigateBack = onBack)
++                AsgardSettingToggleRow(
++                    title = "Auto-unfreeze on launch",
++                    subtitle = "Tap a suspended app's icon to unsuspend and open it.",
++                    checked = autoUnfreeze,
++                    onCheckedChange = { v -> autoUnfreeze = v; setBool(ctx, uri, "set", v) },
++                    modifier = Modifier.padding(16.dp)
++                )
++                Text(
++                    "Spoof installer as Play Store",
++                    style = MaterialTheme.typography.titleMedium,
++                    modifier = Modifier.padding(start = 16.dp, top = 8.dp)
++                )
++                Text(
++                    "Selected apps report Play as their installer. Also enable each app in " +
++                        "Stormbringer's LSPosed scope.",
++                    style = MaterialTheme.typography.bodySmall,
++                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
++                )
++            }
++            items(userApps, key = { it.second }) { (label, pkg) ->
++                AsgardSettingToggleRow(
++                    title = label,
++                    subtitle = pkg,
++                    checked = pkg in spoofSet,
++                    onCheckedChange = { on ->
++                        spoofSet = if (on) spoofSet + pkg else spoofSet - pkg
++                        setSpoofSet(ctx, uri, spoofSet)
++                    },
++                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
++                )
++            }
+         }
+-        Column {
+-            AsgardHeader(title = "Stormbringer", onNavigateBack = onBack)
+-            AsgardSettingToggleRow(
+-                title = "Auto-unfreeze on launch",
+-                subtitle = "Tap a suspended app's icon to unsuspend and open it.",
+-                checked = enabled,
+-                onCheckedChange = { value ->
+-                    enabled = value
+-                    runCatching {
+-                        ctx.contentResolver.call(uri, "set", null, Bundle().apply { putBoolean("value", value) })
+-                    }
+-                },
+-                modifier = Modifier.padding(16.dp)
++    }
++
++    private fun getBool(ctx: Context, uri: Uri, method: String): Boolean = runCatching {
++        ctx.contentResolver.call(uri, method, null, null)?.getBoolean("value") == true
++    }.getOrDefault(false)
++
++    private fun setBool(ctx: Context, uri: Uri, method: String, value: Boolean) {
++        runCatching { ctx.contentResolver.call(uri, method, null, Bundle().apply { putBoolean("value", value) }) }
++    }
++
++    private fun getSpoofSet(ctx: Context, uri: Uri): Set<String> = runCatching {
++        ctx.contentResolver.call(uri, "getSpoofSet", null, null)?.getStringArray("value")?.toSet().orEmpty()
++    }.getOrDefault(emptySet())
++
++    private fun setSpoofSet(ctx: Context, uri: Uri, set: Set<String>) {
++        runCatching {
++            ctx.contentResolver.call(
++                uri, "setSpoofSet", null, Bundle().apply { putStringArray("value", set.toTypedArray()) }
+             )
+         }
+     }
++
++    private fun userApps(ctx: Context): List<Pair<String, String>> = runCatching {
++        val pm = ctx.packageManager
++        pm.getInstalledApplications(0)
++            .filter { (it.flags and ApplicationInfo.FLAG_SYSTEM) == 0 }
++            .map { pm.getApplicationLabel(it).toString() to it.packageName }
++            .sortedBy { it.first.lowercase() }
++    }.getOrDefault(emptyList())
+ }
+diff --git a/app/src/main/java/com/valhalla/thor/ext/stormbringer/XposedEntry.kt b/app/src/main/java/com/valhalla/thor/ext/stormbringer/XposedEntry.kt
+index 7c45681..cdb3c6d 100644
+--- a/app/src/main/java/com/valhalla/thor/ext/stormbringer/XposedEntry.kt
++++ b/app/src/main/java/com/valhalla/thor/ext/stormbringer/XposedEntry.kt
+@@ -1,12 +1,23 @@
+ package com.valhalla.thor.ext.stormbringer
+ 
+ import de.robv.android.xposed.IXposedHookLoadPackage
++import de.robv.android.xposed.XposedHelpers
+ import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam
+ 
+ class XposedEntry : IXposedHookLoadPackage {
+     override fun handleLoadPackage(lpp: LoadPackageParam) {
+         // Don't hook our own process.
+         if (lpp.packageName == "com.valhalla.thor.ext.stormbringer") return
+         LaunchAppHook(lpp.classLoader).start()
++        // The spoof hook needs a Context; hook Application.onCreate to grab it, then self-gate on the set.
++        XposedHelpers.findAndHookMethod(
++            android.app.Application::class.java, "onCreate",
++            object : de.robv.android.xposed.XC_MethodHook() {
++                override fun afterHookedMethod(p: MethodHookParam) {
++                    val app = p.thisObject as? android.content.Context ?: return
++                    InstallerSpoofHook(lpp.classLoader).startIfSpoofed(app)
++                }
++            }
++        )
+     }
+ }

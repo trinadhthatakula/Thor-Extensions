@@ -2,33 +2,33 @@
   "schemaVersion": 1,
   "extensions": [
     {
-      "id": "com.valhalla.thor.ext.strombringer",
-      "name": "Strombringer",
+      "id": "com.valhalla.thor.ext.stormbringer",
+      "name": "Stormbringer",
       "description": "Auto-unfreeze suspended apps on launch, plus CorePatch signature-bypass (danger zone). Requires LSPosed.",
       "author": "Thor",
-      "version": "1.00.1",
-      "versionCode": 1001,
+      "version": "1.00.2",
+      "versionCode": 1002,
       "verified": true,
       "requiresLSPosed": true,
       "minThorVersionCode": 1900,
       "minSdk": 28,
-      "apkUrl": "https://github.com/trinadhthatakula/Thor-Extensions/releases/download/strombringer-v1.00.1/strombringer-1.00.1.apk",
-      "sha256": "91a4d2a74671d63dbcdd11222010c478d951574dfe037a7ffeb13529ccace373",
-      "sourcePath": "verified/strombringer"
+      "apkUrl": "https://github.com/trinadhthatakula/Thor-Extensions/releases/download/stormbringer-v1.00.2/stormbringer-1.00.2.apk",
+      "sha256": "8c2a0e0eff685e9664970283c76f9a5dc191c03e4e100f54aa9467cc72b403fb",
+      "sourcePath": "verified/stormbringer"
     },
     {
       "id": "com.valhalla.thor.ext.automation",
       "name": "Thor Cluster Automator",
       "description": "Automate freezing and unfreezing of custom app clusters.",
       "author": "Thor",
-      "version": "1.00.4",
-      "versionCode": 1004,
+      "version": "1.00.5",
+      "versionCode": 1005,
       "verified": true,
       "requiresLSPosed": false,
       "minThorVersionCode": 1900,
       "minSdk": 28,
-      "apkUrl": "https://github.com/trinadhthatakula/Thor-Extensions/releases/download/thor-automation-extension-v1.00.4/thor-automation-extension-1.00.4.apk",
-      "sha256": "4005ec9a67e8ba7f7ad562246ab2bed5c4223c71c3f4e96a18682c42051ec296",
+      "apkUrl": "https://github.com/trinadhthatakula/Thor-Extensions/releases/download/thor-automation-extension-v1.00.5/thor-automation-extension-1.00.5.apk",
+      "sha256": "f6e15c136fbc98074392576c2b7b1c2961b4d80269efb78098ccdad52de9fbe8",
       "sourcePath": "verified/thor-automation-extension"
     }
   ]

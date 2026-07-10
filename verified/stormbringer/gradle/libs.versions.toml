@@ -13,6 +13,7 @@ lifecycleRuntimeKtx = "2.11.0"
 kotlinxSerializationJson = "1.11.0"
 thorExtensionApi = "3.0.0"
 asgardUi = "2.0.0"
+xposed = "82"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -32,6 +33,8 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 thor-extension-api = { module = "com.trinadhthatakula:thor-extension-api", version.ref = "thorExtensionApi" }
 # Asgard UI components — also provided by the host (Thor) at runtime, so compileOnly.
 asgard = { module = "com.trinadhthatakula:asgard", version.ref = "asgardUi" }
+# Xposed API — provided by the LSPosed framework at runtime; never bundled.
+xposed = { module = "de.robv.android.xposed:api", version.ref = "xposed" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
