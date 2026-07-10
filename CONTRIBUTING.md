@@ -117,9 +117,10 @@ Extensions don't run code inside Thor. To perform a privileged package action, c
 - **extras:** `Bundle { putStringArray("packages", …) }`
 - **returns:** `Bundle { "ok": Boolean, "count": Int }`
 
-Thor verifies the caller is a pinned-signer extension (debug builds relax this), runs the op mode-aware
-(honouring the user's Freeze/Suspend setting), and never operates on Thor's own or your package. Call it
-OFF the main thread (`ContentResolver.call` is a synchronous IPC). Your app needs no special permission —
+Thor verifies the caller is a pinned-signer extension (debug builds relax this), freezes via
+disable/enable (Thor's Suspend mode is not used — its suspend path is unavailable on release), and never
+operates on Thor's own or your package. Call it OFF the main thread (`ContentResolver.call` is a
+synchronous IPC). Your app needs no special permission —
 just package visibility (declare `<queries><package android:name="com.valhalla.thor"/></queries>` or hold
 `QUERY_ALL_PACKAGES`). See `verified/thor-automation-extension` (`ThorOps.kt`) for a reference client.
 

@@ -494,9 +494,16 @@ private fun ClusterDetailsScreen(
                     icon = Icons.Default.Lock,
                     label = "Freeze",
                     onClick = {
-                        scope.launch(Dispatchers.IO) { ThorOps.run(context, "freeze", cluster.packages) }
                         Toast.makeText(context, "Freezing cluster…", Toast.LENGTH_SHORT).show()
-                        refreshTrigger++
+                        // Refresh AFTER the op lands. ThorOps.run is a synchronous IPC to Thor
+                        // (cold-start + `pm disable`); bumping refreshTrigger inline re-read the
+                        // still-active state before the freeze committed, so the grid showed a stale
+                        // "Active" until a second tap. Sequencing the bump after run() returns reads
+                        // the fresh frozen state.
+                        scope.launch {
+                            withContext(Dispatchers.IO) { ThorOps.run(context, "freeze", cluster.packages) }
+                            refreshTrigger++
+                        }
                     },
                     iconTint = MaterialTheme.colorScheme.error
                 )
@@ -505,9 +512,12 @@ private fun ClusterDetailsScreen(
                     icon = Icons.Default.Refresh,
                     label = "Unfreeze",
                     onClick = {
-                        scope.launch(Dispatchers.IO) { ThorOps.run(context, "unfreeze", cluster.packages) }
                         Toast.makeText(context, "Unfreezing cluster…", Toast.LENGTH_SHORT).show()
-                        refreshTrigger++
+                        // Same ordering as Freeze: refresh only after the unfreeze IPC returns.
+                        scope.launch {
+                            withContext(Dispatchers.IO) { ThorOps.run(context, "unfreeze", cluster.packages) }
+                            refreshTrigger++
+                        }
                     }
                 )
 
@@ -572,6 +582,16 @@ private fun ClusterDetailsScreen(
                     iconTint = MaterialTheme.colorScheme.error
                 )
             }
+
+            // Clusters always freeze via disable/enable — Thor's Suspend mode does not apply here (its
+            // suspend path is unavailable on release builds). Stated so users on Suspend mode aren't
+            // surprised that cluster apps are disabled rather than suspended.
+            Text(
+                text = "Apps are frozen via disable/enable. Thor's Suspend mode isn't supported for clusters.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 10.dp)
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
