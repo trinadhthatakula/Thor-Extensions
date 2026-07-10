@@ -1,0 +1,41 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:hasCode="true"
+        android:label="Stormbringer"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+        <!-- Thor extension entry -->
+        <meta-data android:name="thor.extension.class"
+            android:value="com.valhalla.thor.ext.stormbringer.StormbringerExtension" />
+        <meta-data android:name="thor.extension.api.version" android:value="2" />
+
+        <!-- LSPosed module descriptor -->
+        <meta-data android:name="xposedmodule" android:value="true" />
+        <meta-data android:name="xposeddescription"
+            android:value="Auto-unfreeze suspended apps on launch (controlled from Thor)." />
+        <meta-data android:name="xposedminversion" android:value="82" />
+        <meta-data android:name="xposedscope" android:resource="@array/xposed_scope" />
+
+        <provider
+            android:name=".StormbringerConfigProvider"
+            android:authorities="com.valhalla.thor.ext.stormbringer.config"
+            android:exported="true" />
+
+        <!-- Configuration UI, launched by Thor via the CONFIGURE action. Runs in THIS app's own
+             process (own Compose/Asgard) so no runtime types cross into Thor. Must be exported for
+             Thor (a different app) to start it; it performs no privileged action itself — the
+             signature bypass is gated in system_server by the LSPosed hook (bootloop guard +
+             auto-off), and enabling still requires the in-screen type-to-confirm. The action string
+             is the shared contract with Thor's ExtensionManager.ACTION_CONFIGURE. -->
+        <activity
+            android:name=".ConfigActivity"
+            android:exported="true"
+            android:label="Stormbringer"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="com.valhalla.thor.extension.action.CONFIGURE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

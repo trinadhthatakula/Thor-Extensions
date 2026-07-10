@@ -47,7 +47,7 @@ before install and again when Thor loads the installed package).
 - **Manual:** download the APK from this repo's [Releases](../../releases) and install it. On
   release Thor it must be signed by the pinned key to load.
 
-Some extensions need extra setup — e.g. **Strombringer** requires the
+Some extensions need extra setup — e.g. **Stormbringer** requires the
 [LSPosed](https://github.com/JingMatrix/LSPosed) framework; activate its module after installing.
 
 ## The catalog (`catalog/extensions.json`)
@@ -92,5 +92,5 @@ open a PR. The starter is [`thor-extension-template`](https://github.com/trinadh
 
 ## License
 
-Each extension carries its own license (see its folder). Strombringer is GPLv2 (it forks CorePatch);
+Each extension carries its own license (see its folder). Stormbringer is GPLv2 (it forks CorePatch);
 others are GPLv3 to match Thor.

@@ -1,8 +1,8 @@
 version: 2
 updates:
-  # verified/strombringer extension dependencies
+  # verified/stormbringer extension dependencies
   - package-ecosystem: "gradle"
-    directory: "/verified/strombringer"
+    directory: "/verified/stormbringer"
     schedule:
       interval: "weekly"
     target-branch: "main"

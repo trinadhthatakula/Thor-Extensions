@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ext: [ strombringer, thor-automation-extension ]
+        ext: [ stormbringer, thor-automation-extension ]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

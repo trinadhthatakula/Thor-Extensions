@@ -97,7 +97,7 @@ by the `versionName` tag, but the store's update detection compares `versionCode
 would release without any device being offered the update:
 
 1. `scripts/build-changed.sh` detects the changed extension, derives the tag `<dir>-v<version>`
-   (e.g. `strombringer-v1.00.0`) and asset `<dir>-<version>.apk`, and reads `versionCode` from
+   (e.g. `stormbringer-v1.00.0`) and asset `<dir>-<version>.apk`, and reads `versionCode` from
    `app/build.gradle.kts`.
 2. The workflow builds `:app:assembleRelease`, signs with the dedicated key, and **rejects any APK
    not signed by the pinned certificate** (`762DC455…F9498C`).
