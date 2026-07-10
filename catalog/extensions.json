@@ -21,14 +21,14 @@
       "name": "Thor Cluster Automator",
       "description": "Automate freezing and unfreezing of custom app clusters.",
       "author": "Thor",
-      "version": "1.00.3",
-      "versionCode": 1003,
+      "version": "1.00.5",
+      "versionCode": 1005,
       "verified": true,
       "requiresLSPosed": false,
       "minThorVersionCode": 1900,
       "minSdk": 28,
-      "apkUrl": "https://github.com/trinadhthatakula/Thor-Extensions/releases/download/thor-automation-extension-v1.00.3/thor-automation-extension-1.00.3.apk",
-      "sha256": "06cd0ae1bf17510cee432531844ac9b7b963beb61f7b605166ba5337e792013b",
+      "apkUrl": "https://github.com/trinadhthatakula/Thor-Extensions/releases/download/thor-automation-extension-v1.00.5/thor-automation-extension-1.00.5.apk",
+      "sha256": "f6e15c136fbc98074392576c2b7b1c2961b4d80269efb78098ccdad52de9fbe8",
       "sourcePath": "verified/thor-automation-extension"
     }
   ]

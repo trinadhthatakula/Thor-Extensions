@@ -30,8 +30,8 @@ android {
         applicationId = "com.valhalla.thor.ext.stormbringer"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 1001
-        versionName = "1.00.1"
+        versionCode = 1002
+        versionName = "1.00.2"
     }
 
     signingConfigs {
