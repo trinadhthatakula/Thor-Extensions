@@ -34,6 +34,7 @@
         <activity
             android:name=".ConfigActivity"
             android:exported="true"
+            android:excludeFromRecents="true"
             android:label="Thor Cluster Automator"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
             <intent-filter>

@@ -30,6 +30,7 @@
         <activity
             android:name=".ConfigActivity"
             android:exported="true"
+            android:excludeFromRecents="true"
             android:label="Stormbringer"
             android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>
