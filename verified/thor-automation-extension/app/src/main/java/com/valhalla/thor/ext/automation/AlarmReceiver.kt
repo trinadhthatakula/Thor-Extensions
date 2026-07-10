@@ -14,17 +14,22 @@ class AlarmReceiver : BroadcastReceiver() {
         val action = intent.getStringExtra("action") ?: "toggle"   // freeze | unfreeze | toggle
         val clusterName = intent.getStringExtra("cluster_name") ?: return
 
-        val json = context.getSharedPreferences(Config.PREFS, Context.MODE_PRIVATE)
-            .getString(Config.KEY_SAVED_CLUSTERS, null) ?: return
-        val clusters = runCatching { Json.decodeFromString<List<AppCluster>>(json) }.getOrDefault(emptyList())
-        val packages = clusters.firstOrNull { it.name == clusterName }?.packages ?: return
-        if (packages.isEmpty()) return
-
-        // BroadcastReceiver.onReceive is on the main thread; the ops call is a synchronous IPC, so hop
-        // off it. goAsync keeps the receiver alive while the (fast, local) provider call runs.
+        // BroadcastReceiver.onReceive is on the main thread. Move SharedPreferences disk read, JSON parsing,
+        // and the synchronous ContentProvider IPC off the main thread to prevent UI jank / ANRs.
+        // goAsync keeps the receiver alive while the background thread runs.
         val pending = goAsync()
         Thread {
-            try { ThorOps.run(context, action, packages) } finally { pending.finish() }
+            try {
+                val json = context.getSharedPreferences(Config.PREFS, Context.MODE_PRIVATE)
+                    .getString(Config.KEY_SAVED_CLUSTERS, null) ?: return@Thread
+                val clusters = runCatching { Json.decodeFromString<List<AppCluster>>(json) }.getOrDefault(emptyList())
+                val packages = clusters.firstOrNull { it.name == clusterName }?.packages ?: return@Thread
+                if (packages.isEmpty()) return@Thread
+
+                ThorOps.run(context, action, packages)
+            } finally {
+                pending.finish()
+            }
         }.start()
     }
 }
