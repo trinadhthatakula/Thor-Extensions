@@ -1,0 +1,44 @@
+name: PR CI
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+# Least-privilege token — this workflow only reads the repo.
+permissions:
+  contents: read
+
+# Cancel superseded runs for the same PR.
+concurrency:
+  group: pr-ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and Test ${{ matrix.ext }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ext: [ strombringer, thor-automation-extension ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        working-directory: verified/${{ matrix.ext }}
+        run: chmod +x gradlew
+
+      - name: Compile and run unit tests (Debug)
+        working-directory: verified/${{ matrix.ext }}
+        run: ./gradlew assembleDebug test --no-daemon --stacktrace

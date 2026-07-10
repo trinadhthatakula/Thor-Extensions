@@ -1,7 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Permission to send broadcasts to Thor's secure receiver -->
-    <uses-permission android:name="com.valhalla.thor.permission.TRIGGER_EXTENSION" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <!-- The config UI runs in THIS process now (not Thor's), so it must enumerate installed apps and
@@ -22,8 +20,8 @@
             android:name="thor.extension.api.version"
             android:value="2" />
 
-        <!-- Config store: the config UI (this process) writes clusters here; AutomationCluster.onTrigger
-             (Thor's process) reads them back via the exported provider IPC. Backed by private prefs. -->
+        <!-- Config store: the config UI and AlarmReceiver (this process) write and read clusters here.
+             Exported so Thor can reach it via IPC; backed by private prefs. -->
         <provider
             android:name=".AutomationConfigProvider"
             android:authorities="com.valhalla.thor.ext.automation.config"

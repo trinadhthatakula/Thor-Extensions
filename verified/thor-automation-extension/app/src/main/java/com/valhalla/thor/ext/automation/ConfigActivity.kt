@@ -6,11 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import android.content.pm.ShortcutInfo
-import android.content.pm.ShortcutManager
 import android.graphics.Bitmap
-import android.graphics.drawable.Icon
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -54,7 +50,6 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -110,10 +105,10 @@ import java.util.Calendar
  * full Compose/Asgard, so nothing crosses the boundary.
  *
  * Two consequences of running out-of-process, handled below:
- *  • No ShellExecutor here — live freeze/unfreeze is forwarded to Thor via the same secure broadcast
- *    [AlarmReceiver] uses ([triggerThor]); frozen-state is read locally via PackageManager.
+ *  • No ShellExecutor here — live freeze/unfreeze is forwarded to Thor's ExtensionOpsProvider (see
+ *    [ThorOps]), the same path [AlarmReceiver] uses; frozen-state is read locally via PackageManager.
  *  • Cluster persistence goes through [AutomationConfigProvider]'s private prefs (same process, so the
- *    Activity reads/writes them directly), which is exactly what [AutomationCluster.onTrigger] reads.
+ *    Activity reads/writes them directly); [AlarmReceiver] reads the same prefs to resolve packages.
  */
 class ConfigActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -147,26 +142,12 @@ private fun loadClusters(context: Context): List<AppCluster> {
     return runCatching { Json.decodeFromString<List<AppCluster>>(json) }.getOrDefault(emptyList())
 }
 
-/** Persists the cluster list to the config prefs; [AutomationCluster.onTrigger] reads it via IPC. */
+/** Persists the cluster list to the config prefs; [AlarmReceiver] reads it back to resolve packages. */
 private fun saveClusters(context: Context, clusters: List<AppCluster>) {
     context.getSharedPreferences(Config.PREFS, Context.MODE_PRIVATE)
         .edit()
         .putString(Config.KEY_SAVED_CLUSTERS, Json.encodeToString(clusters))
         .apply()
-}
-
-/**
- * Forwards a live action to Thor over the same secure broadcast [AlarmReceiver] uses. This process has
- * no root/ShellExecutor, so freeze/unfreeze must run in Thor. [triggerId] is `"<action>:<clusterName>"`
- * (e.g. `"freeze:Games"`), matching what [AutomationCluster.onTrigger] parses.
- */
-private fun triggerThor(context: Context, triggerId: String) {
-    val intent = Intent("com.valhalla.thor.action.TRIGGER_EXTENSION").apply {
-        setPackage("com.valhalla.thor")
-        putExtra("extension_class", "com.valhalla.thor.ext.automation.AutomationCluster")
-        putExtra("trigger_id", triggerId)
-    }
-    context.sendBroadcast(intent, "com.valhalla.thor.permission.TRIGGER_EXTENSION")
 }
 
 /** True if [pkg] is currently frozen (disabled), read locally without root. */
@@ -248,12 +229,12 @@ private fun AutomationConfigRoot(onExit: () -> Unit) {
                     editingClusterName = null
                     currentScreen = AutoScreen.CREATE_EDIT_CLUSTER
                 },
-                onFreezeCluster = { name, _ ->
-                    triggerThor(context, "freeze:$name")
+                onFreezeCluster = { name, packages ->
+                    scope.launch(Dispatchers.IO) { ThorOps.run(context, "freeze", packages) }
                     Toast.makeText(context, "Freezing $name…", Toast.LENGTH_SHORT).show()
                 },
-                onUnfreezeCluster = { name, _ ->
-                    triggerThor(context, "unfreeze:$name")
+                onUnfreezeCluster = { name, packages ->
+                    scope.launch(Dispatchers.IO) { ThorOps.run(context, "unfreeze", packages) }
                     Toast.makeText(context, "Unfreezing $name…", Toast.LENGTH_SHORT).show()
                 }
             )
@@ -475,6 +456,7 @@ private fun ClusterDetailsScreen(
 ) {
     val clusterName = cluster.name
     val packageList = cluster.packages
+    val scope = rememberCoroutineScope()
     var isScheduled by remember(cluster) { mutableStateOf(cluster.isScheduled) }
     var refreshTrigger by remember { mutableStateOf(0) }
 
@@ -512,9 +494,16 @@ private fun ClusterDetailsScreen(
                     icon = Icons.Default.Lock,
                     label = "Freeze",
                     onClick = {
-                        triggerThor(context, "freeze:$clusterName")
                         Toast.makeText(context, "Freezing cluster…", Toast.LENGTH_SHORT).show()
-                        refreshTrigger++
+                        // Refresh AFTER the op lands. ThorOps.run is a synchronous IPC to Thor
+                        // (cold-start + `pm disable`); bumping refreshTrigger inline re-read the
+                        // still-active state before the freeze committed, so the grid showed a stale
+                        // "Active" until a second tap. Sequencing the bump after run() returns reads
+                        // the fresh frozen state.
+                        scope.launch {
+                            withContext(Dispatchers.IO) { ThorOps.run(context, "freeze", cluster.packages) }
+                            refreshTrigger++
+                        }
                     },
                     iconTint = MaterialTheme.colorScheme.error
                 )
@@ -523,33 +512,11 @@ private fun ClusterDetailsScreen(
                     icon = Icons.Default.Refresh,
                     label = "Unfreeze",
                     onClick = {
-                        triggerThor(context, "unfreeze:$clusterName")
                         Toast.makeText(context, "Unfreezing cluster…", Toast.LENGTH_SHORT).show()
-                        refreshTrigger++
-                    }
-                )
-
-                AsgardActionItem(
-                    icon = Icons.Default.Share,
-                    label = "Shortcut",
-                    onClick = {
-                        val shortcutManager = context.getSystemService(ShortcutManager::class.java)
-                        if (shortcutManager != null && shortcutManager.isRequestPinShortcutSupported) {
-                            val intent = Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse("thor://extension/trigger?class=com.valhalla.thor.ext.automation.AutomationCluster&triggerId=toggle:$clusterName")
-                            )
-                            val shortcut = ShortcutInfo.Builder(context, "shortcut:$clusterName")
-                                .setShortLabel(clusterName)
-                                .setLongLabel("Toggle $clusterName")
-                                .setIcon(Icon.createWithResource(context, android.R.drawable.ic_lock_power_off))
-                                .setIntent(intent)
-                                .build()
-
-                            shortcutManager.requestPinShortcut(shortcut, null)
-                            Toast.makeText(context, "Requesting shortcut pinning", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "Shortcut pinning not supported", Toast.LENGTH_SHORT).show()
+                        // Same ordering as Freeze: refresh only after the unfreeze IPC returns.
+                        scope.launch {
+                            withContext(Dispatchers.IO) { ThorOps.run(context, "unfreeze", cluster.packages) }
+                            refreshTrigger++
                         }
                     }
                 )
@@ -615,6 +582,16 @@ private fun ClusterDetailsScreen(
                     iconTint = MaterialTheme.colorScheme.error
                 )
             }
+
+            // Clusters always freeze via disable/enable — Thor's Suspend mode does not apply here (its
+            // suspend path is unavailable on release builds). Stated so users on Suspend mode aren't
+            // surprised that cluster apps are disabled rather than suspended.
+            Text(
+                text = "Apps are frozen via disable/enable. Thor's Suspend mode isn't supported for clusters.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 10.dp)
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 

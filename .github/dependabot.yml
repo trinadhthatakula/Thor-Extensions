@@ -1,0 +1,34 @@
+version: 2
+updates:
+  # verified/strombringer extension dependencies
+  - package-ecosystem: "gradle"
+    directory: "/verified/strombringer"
+    schedule:
+      interval: "weekly"
+    target-branch: "main"
+    groups:
+      maven:
+        patterns:
+          - "*"
+
+  # verified/thor-automation-extension dependencies
+  - package-ecosystem: "gradle"
+    directory: "/verified/thor-automation-extension"
+    schedule:
+      interval: "weekly"
+    target-branch: "main"
+    groups:
+      maven:
+        patterns:
+          - "*"
+
+  # Keep GitHub Actions versions current/patched
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    target-branch: "main"
+    groups:
+      actions:
+        patterns:
+          - "*"

@@ -24,10 +24,10 @@ object Config {
 }
 
 /**
- * Config store for the automation extension. The config UI ([ConfigActivity], which runs in this
- * extension's OWN process) writes the cluster list here; [AutomationCluster.onTrigger] (which runs in
- * Thor's process) reads it back via this exported provider's `call`. Backed by PRIVATE prefs — the
- * exported provider IPC is the only cross-process reach.
+ * Config store for the automation extension. The config UI ([ConfigActivity]) and [AlarmReceiver] —
+ * both in this extension's OWN process — write and read the cluster list here directly. The provider is
+ * also exported so Thor can reach it via `call`. Backed by PRIVATE prefs — that exported IPC is the only
+ * cross-process reach.
  *
  * Mirrors Strombringer's `StrombringerConfigProvider`, adapted for a String payload (the cluster JSON)
  * instead of the boolean/int flags Strombringer stores.
@@ -37,8 +37,8 @@ class AutomationConfigProvider : ContentProvider() {
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle {
         val ctx = context ?: return Bundle()
-        // Security: the provider is exported so Thor (AutomationCluster.onTrigger runs in Thor's
-        // process) and this extension's own config UI can reach it — but NOT arbitrary apps.
+        // Security: the provider is exported so Thor and this extension's own config UI can reach it —
+        // but NOT arbitrary apps.
         // getCallingPackage() is attested by the system against the caller's UID, so it's a
         // trustworthy allowlist gate. A null caller means a same-process call (our own config UI).
         val caller = callingPackage
