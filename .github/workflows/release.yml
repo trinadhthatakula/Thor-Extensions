@@ -42,7 +42,7 @@ jobs:
       any: ${{ steps.detect.outputs.any }}
     steps:
       - name: Checkout (full history for tags)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -81,7 +81,7 @@ jobs:
       EXT_APK_NAME: ${{ matrix.apk_name }}
     steps:
       - name: Checkout (full history for tags + catalog push)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -101,13 +101,13 @@ jobs:
           echo "Catalog stub present for $EXT_DIR."
 
       - name: Set up JDK 21 (Temurin)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Decode signing keystore
         env:
