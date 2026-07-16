@@ -120,6 +120,7 @@ private fun ShieldConfigSheet(
     
     val scanResults = remember { mutableStateListOf<ScanResultItem>() }
     var selectedFinding by remember { mutableStateOf<ScanResultItem?>(null) }
+    var selectedFilter by remember { mutableStateOf("ALL") }
 
     val scanModes = listOf(
         ConnectedButtonGroupItem.IconWithLabel(
@@ -147,6 +148,7 @@ private fun ShieldConfigSheet(
         scannedCount = 0
         threatCount = 0
         currentScannedPackage = ""
+        selectedFilter = "ALL"
 
         scope.launch(Dispatchers.Default) {
             try {
@@ -322,6 +324,7 @@ private fun ShieldConfigSheet(
                     scannedCount = 0
                     threatCount = 0
                     currentScannedPackage = ""
+                    selectedFilter = "ALL"
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -405,55 +408,92 @@ private fun ShieldConfigSheet(
                 )
             }
 
-            // Scan Results Header
-            Text(
-                text = "Intelligence Findings",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-            )
+            if (scanResults.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
 
-            if (scanResults.isEmpty()) {
-                Box(
+                // Scan Results Header
+                Text(
+                    text = "Intelligence Findings",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp),
-                    contentAlignment = Alignment.Center
+                        .padding(bottom = 8.dp)
+                )
+
+                // Horizontal Filter Chips
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AsgardEmptyState(
-                        text = "System secure",
-                        icon = Icons.Rounded.Shield,
-                        description = "Start a scan to verify integrity against hijacked builds."
-                    )
+                    listOf("ALL", "MALICIOUS", "SUSPICIOUS").forEach { filter ->
+                        val selected = selectedFilter == filter
+                        val containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                        val contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(containerColor)
+                                .clickable { selectedFilter = filter }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = filter,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = contentColor
+                            )
+                        }
+                    }
                 }
-            } else {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    scanResults.forEach { result ->
-                        AsgardListRow(
-                            title = result.displayName,
-                            subtitle = result.packageName,
-                            caption = "SHA-256: ${result.sha256.take(16)}...",
-                            icon = Icons.Rounded.BugReport,
-                            onClick = { selectedFinding = result },
-                            trailing = {
-                                val statusColor = when (result.classification) {
-                                    "MALICIOUS" -> MaterialTheme.colorScheme.error
-                                    "SUSPICIOUS" -> Color(0xFFFFB300)
-                                    else -> Color(0xFF4CAF50)
-                                }
-                                StatusChip(
-                                    text = result.classification,
-                                    containerColor = statusColor.copy(alpha = 0.15f),
-                                    contentColor = statusColor
-                                )
-                            }
+
+                // Filtered scan results
+                val filteredResults = scanResults.filter { selectedFilter == "ALL" || it.classification == selectedFilter }
+
+                if (filteredResults.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No $selectedFilter findings match.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline
                         )
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        filteredResults.forEach { result ->
+                            AsgardListRow(
+                                title = result.displayName,
+                                subtitle = result.packageName,
+                                caption = "SHA-256: ${result.sha256.take(16)}...",
+                                icon = Icons.Rounded.BugReport,
+                                onClick = { selectedFinding = result },
+                                trailing = {
+                                    val statusColor = when (result.classification) {
+                                        "MALICIOUS" -> MaterialTheme.colorScheme.error
+                                        "SUSPICIOUS" -> Color(0xFFFFB300)
+                                        else -> Color(0xFF4CAF50)
+                                    }
+                                    StatusChip(
+                                        text = result.classification,
+                                        containerColor = statusColor.copy(alpha = 0.15f),
+                                        contentColor = statusColor
+                                    )
+                                }
+                            )
+                        }
                     }
                 }
             }
