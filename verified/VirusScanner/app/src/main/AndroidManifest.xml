@@ -1,0 +1,52 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- The config UI runs in THIS process now (not Thor's), so it must enumerate installed apps and
+         load their icons/labels itself. On Android 11+ (targetSdk 37) that needs full package
+         visibility. Thor already holds this; the picker/detail grid would otherwise come up empty. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
+    <application
+        android:hasCode="true"
+        android:label="Thor App & APK Antivirus"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+        <!-- Tells Thor Core which class implements the contract -->
+        <meta-data
+            android:name="thor.extension.class"
+            android:value="com.valhalla.thor.ext.antivirus.VirusScannerExtension" />
+        <meta-data
+            android:name="thor.extension.api.version"
+            android:value="2" />
+
+        <!-- Config store: the config UI and AlarmReceiver (this process) write and read clusters here.
+             Exported so Thor can reach it via IPC; backed by private prefs. -->
+        <provider
+            android:name=".AutomationConfigProvider"
+            android:authorities="com.valhalla.thor.ext.antivirus.config"
+            android:exported="true" />
+
+        <!-- Configuration UI, launched by Thor via the CONFIGURE action. Runs in THIS app's own
+             process (own Compose/Asgard) so no runtime types cross into Thor. Must be exported for
+             Thor (a different app) to start it. The action string is the shared contract with Thor's
+             ExtensionManager (ThorExtensionContract.ACTION_CONFIGURE). -->
+        <activity
+            android:name=".ConfigActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="Thor App & APK Antivirus"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+            <intent-filter>
+                <action android:name="com.valhalla.thor.extension.action.CONFIGURE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Alarm Receiver to receive background alarm triggers and notify Thor -->
+        <receiver
+            android:name="com.valhalla.thor.ext.antivirus.AlarmReceiver"
+            android:exported="false" />
+
+    </application>
+</manifest>

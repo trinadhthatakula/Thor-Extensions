@@ -30,6 +30,21 @@
       "apkUrl": "https://github.com/trinadhthatakula/Thor-Extensions/releases/download/thor-automation-extension-v1.00.5/thor-automation-extension-1.00.5.apk",
       "sha256": "d8167ec313ecb5ebf460252907c4bfe77c897d092f9460ef6c9571f3aa362c32",
       "sourcePath": "verified/thor-automation-extension"
+    },
+    {
+      "id": "com.valhalla.thor.ext.antivirus",
+      "name": "Thor App & APK Antivirus",
+      "description": "Premium APK & App security scanner. Scans installed apps and storage files for malicious heuristics, certificate changes, and signature spoofing.",
+      "author": "Thor",
+      "version": "1.00.0",
+      "versionCode": 1000,
+      "verified": true,
+      "requiresLSPosed": false,
+      "minThorVersionCode": 1900,
+      "minSdk": 28,
+      "apkUrl": "https://github.com/trinadhthatakula/Thor-Extensions/releases/download/VirusScanner-v1.00.0/VirusScanner-1.00.0.apk",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "sourcePath": "verified/VirusScanner"
     }
   ]
 }
