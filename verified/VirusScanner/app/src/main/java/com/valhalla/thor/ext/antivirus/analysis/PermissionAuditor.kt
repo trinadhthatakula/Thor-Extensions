@@ -8,6 +8,8 @@ data class PermissionAuditResult(
     val hasAccessibilityAbuse: Boolean,
     val hasOverlayAbuse: Boolean,
     val hasPersistenceAbuse: Boolean,
+    val requestsShizuku: Boolean = false,
+    val requestsRoot: Boolean = false,
     val score: Int
 )
 
@@ -24,6 +26,8 @@ class PermissionAuditor(private val context: Context) {
         var overlayAbuse = false
         var persistAbuse = false
         var hasQueryAll = false
+        var requestsShizuku = false
+        var requestsRoot = false
 
         try {
             // Bypass auditing of standard platform apps or packages signed with system signatures to eliminate false positives
@@ -31,7 +35,14 @@ class PermissionAuditor(private val context: Context) {
             val isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0 || 
                               (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
             if (isSystemApp) {
-                return PermissionAuditResult(false, false, false, 0)
+                return PermissionAuditResult(
+                    hasAccessibilityAbuse = false,
+                    hasOverlayAbuse = false,
+                    hasPersistenceAbuse = false,
+                    requestsShizuku = false,
+                    requestsRoot = false,
+                    score = 0
+                )
             }
 
             val info = pm.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS)
@@ -48,6 +59,16 @@ class PermissionAuditor(private val context: Context) {
             }
             if (requestedPermissions.contains("android.permission.QUERY_ALL_PACKAGES")) {
                 hasQueryAll = true
+            }
+
+            // Detect Shizuku & Root access requests
+            if (requestedPermissions.contains("moe.shizuku.privilege.permission.API_HOLDERS")) {
+                requestsShizuku = true
+            }
+            if (requestedPermissions.contains("android.permission.ACCESS_SUPERUSER") ||
+                requestedPermissions.contains("com.noshufou.android.su.permission.ACCESS_SUPERUSER") ||
+                requestedPermissions.contains("com.thirdparty.superuser.permission.ACCESS_SUPERUSER")) {
+                requestsRoot = true
             }
 
             // High-grade heuristics combo evaluation:
@@ -86,6 +107,8 @@ class PermissionAuditor(private val context: Context) {
             hasAccessibilityAbuse = accessAbuse,
             hasOverlayAbuse = overlayAbuse,
             hasPersistenceAbuse = persistAbuse,
+            requestsShizuku = requestsShizuku,
+            requestsRoot = requestsRoot,
             score = riskScore
         )
     }

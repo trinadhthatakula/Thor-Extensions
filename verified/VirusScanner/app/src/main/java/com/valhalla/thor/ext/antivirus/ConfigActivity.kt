@@ -442,6 +442,10 @@ private fun ShieldConfigSheet(
                         Text("• Accessibility Service Abuse: ${if (audit.hasAccessibilityAbuse) "DETECTED (High Risk)" else "None"}", color = if (audit.hasAccessibilityAbuse) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline)
                         Text("• Overlay Abuse (Overlays active): ${if (audit.hasOverlayAbuse) "DETECTED (Medium Risk)" else "None"}", color = if (audit.hasOverlayAbuse) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline)
                         Text("• Persistence (Run at boot): ${if (audit.hasPersistenceAbuse) "DETECTED" else "None"}")
+                        
+                        Text("Privilege Access Audit:", fontWeight = FontWeight.Bold)
+                        Text("• Requests Shizuku Access: ${if (audit.requestsShizuku) "YES" else "No"}", color = if (audit.requestsShizuku) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                        Text("• Requests Root (Superuser): ${if (audit.requestsRoot) "YES" else "No"}", color = if (audit.requestsRoot) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline)
                     }
 
                     Text("SHA-256 Fingerprint:", fontWeight = FontWeight.Bold)
