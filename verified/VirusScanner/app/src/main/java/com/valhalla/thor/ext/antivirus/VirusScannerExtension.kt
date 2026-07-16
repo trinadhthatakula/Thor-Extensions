@@ -9,8 +9,8 @@ import com.valhalla.thor.extension.api.ThorExtension
  */
 @Suppress("unused")
 class VirusScannerExtension : ThorExtension {
-    override val name: String = "Thor App & APK Antivirus"
-    override val description: String = "Premium APK & App security scanner. Scans installed apps and storage files for malicious heuristics, certificate changes, and signature spoofing."
+    override val name: String = "S.H.I.E.L.D."
+    override val description: String = "Strategic Hazard Intervention Espionage Logistics Directorate. Premium APK & App security scanner. Scans installed apps and storage files for malicious heuristics, certificate changes, and signature spoofing."
     override val version: String = "1.00.0"
     override val author: String = "Thor"
 }

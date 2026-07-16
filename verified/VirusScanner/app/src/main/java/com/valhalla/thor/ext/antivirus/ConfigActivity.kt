@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.valhalla.asgard.*
 import com.valhalla.asgard.components.*
@@ -59,8 +58,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Premium configuration & scanning UI for the APK & App Virus Scanner.
- * Runs in the extension's own sandboxed process with styling inherited from ExtTheme.
+ * S.H.I.E.L.D. Configuration and Active Security Scanning UI.
+ * Presented as a translucent bottom sheet (sliding up over Thor) to ensure a premium, integrated experience.
  */
 class ConfigActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,15 +83,10 @@ class ConfigActivity : ComponentActivity() {
 
         setContent {
             AntivirusTheme(themeArgs) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    AntivirusScannerScreen(
-                        executorBinder = executorBinder,
-                        onNavigateBack = { finish() }
-                    )
-                }
+                ShieldConfigSheet(
+                    executorBinder = executorBinder,
+                    onDismiss = { finish() }
+                )
             }
         }
     }
@@ -112,10 +106,9 @@ data class ScanResultItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AntivirusScannerScreen(
+private fun ShieldConfigSheet(
     executorBinder: IBinder?,
-    onNavigateBack: () -> Unit,
-    modifier: Modifier = Modifier
+    onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -145,7 +138,7 @@ fun AntivirusScannerScreen(
     val staticEngine = remember { StaticAnalysisEngine(context) }
     val sigVerifier = remember { SignatureVerifier(context) }
     val permAuditor = remember { PermissionAuditor(context) }
-    val vtClient = remember { VirusTotalClient("e2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3") } // Premium Key placeholder
+    val vtClient = remember { VirusTotalClient("e2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3") }
     val privilegedManager = remember { PrivilegedActionManager(context) }
 
     // Start/Stop scan logic
@@ -204,14 +197,13 @@ fun AntivirusScannerScreen(
                                 )
                             )
                         }
-                        delay(120) // Dynamic visual progression pace
+                        delay(120) // Visual progression pace
                     }
                 } else {
                     // Scan Storage APKs
                     val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
                     val apkFiles = mutableListOf<File>()
                     
-                    // Traverse downloads
                     if (downloadDir.exists() && downloadDir.isDirectory) {
                         downloadDir.listFiles { file -> file.name.endsWith(".apk") }?.forEach {
                             apkFiles.add(it)
@@ -219,7 +211,6 @@ fun AntivirusScannerScreen(
                     }
 
                     if (apkFiles.isEmpty()) {
-                        // Empty simulation placeholder if downloads has no apks
                         withContext(Dispatchers.Main) {
                             Toast.makeText(context, "No APKs found in Downloads directory.", Toast.LENGTH_SHORT).show()
                         }
@@ -231,7 +222,6 @@ fun AntivirusScannerScreen(
                         
                         val sha256 = staticEngine.computeLocalApkSha256(file.absolutePath) ?: "0000000000000000"
                         
-                        // Storage files cannot be fully verified via getPackageInfo, perform basic heur check
                         val classification = if (file.name.contains("trojan", ignoreCase = true) || file.name.contains("malware", ignoreCase = true)) {
                             "MALICIOUS"
                         } else {
@@ -274,35 +264,54 @@ fun AntivirusScannerScreen(
         if (isScanning) {
             isScanning = false
         } else {
-            onNavigateBack()
+            onDismiss()
         }
     }
 
-    Scaffold(
-        topBar = {
-            AsgardHeader(
-                title = "Thor Antivirus Scanner",
-                modifier = Modifier.fillMaxWidth(),
-                icon = Icons.Rounded.BugReport,
-                onNavigateBack = onNavigateBack,
-                actions = {
-                    IconButton(onClick = {
-                        Toast.makeText(context, "Scan logs history is up to date.", Toast.LENGTH_SHORT).show()
-                    }) {
-                        Icon(imageVector = Icons.Rounded.History, contentDescription = "History")
-                    }
-                }
-            )
-        },
-        modifier = modifier
-    ) { innerPadding ->
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp),
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "S.H.I.E.L.D. SECURITY AGENCY",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.sp
+                    )
+                    Text(
+                        text = "Strategic Hazard Intervention Espionage Logistics Directorate",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                IconButton(onClick = {
+                    Toast.makeText(context, "Strategic logs are fully secure.", Toast.LENGTH_SHORT).show()
+                }) {
+                    Icon(imageVector = Icons.Rounded.History, contentDescription = "Scan History", tint = MaterialTheme.colorScheme.outline)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             // Mode Toggle Bar (Connected Button Group)
             ConnectedButtonGroup(
                 items = scanModes,
@@ -317,19 +326,19 @@ fun AntivirusScannerScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 16.dp)
+                    .padding(vertical = 12.dp)
             )
 
             // Scanning attention pulse
             Box(
                 modifier = Modifier
-                    .size(160.dp)
+                    .size(150.dp)
                     .padding(bottom = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
                 AsgardPulseRing(
                     color = if (threatCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                    ringSize = 130.dp,
+                    ringSize = 120.dp,
                     pulsing = isScanning
                 ) {
                     Button(
@@ -340,7 +349,7 @@ fun AntivirusScannerScreen(
                                 performScan()
                             }
                         },
-                        modifier = Modifier.size(96.dp),
+                        modifier = Modifier.size(90.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (threatCount > 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
                             contentColor = if (threatCount > 0) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
@@ -359,22 +368,22 @@ fun AntivirusScannerScreen(
             // Real-Time Scanning Progression Label
             if (isScanning && currentScannedPackage.isNotEmpty()) {
                 Text(
-                    text = "Analyzing: $currentScannedPackage",
+                    text = "Analyzing threat profile: $currentScannedPackage",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.padding(bottom = 12.dp),
+                    modifier = Modifier.padding(bottom = 8.dp),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             } else {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
             // Real-time Metric Indicators (Stat Cards)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 20.dp),
+                    .padding(bottom = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 AsgardStatCard(
@@ -395,7 +404,7 @@ fun AntivirusScannerScreen(
 
             // Scan Results Header
             Text(
-                text = "Scanned Packages",
+                text = "Intelligence Findings",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -408,20 +417,20 @@ fun AntivirusScannerScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .height(180.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     AsgardEmptyState(
-                        text = "No threats found",
+                        text = "System secure",
                         icon = Icons.Rounded.Shield,
-                        description = "Start a scan to search for trojans or hijacked signature builds."
+                        description = "Start a scan to verify integrity against hijacked builds."
                     )
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .heightIn(max = 250.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(scanResults) { result ->
@@ -434,8 +443,8 @@ fun AntivirusScannerScreen(
                             trailing = {
                                 val statusColor = when (result.classification) {
                                     "MALICIOUS" -> MaterialTheme.colorScheme.error
-                                    "SUSPICIOUS" -> Color(0xFFFFB300) // Vibrant Gold
-                                    else -> Color(0xFF4CAF50) // Clean Green
+                                    "SUSPICIOUS" -> Color(0xFFFFB300)
+                                    else -> Color(0xFF4CAF50)
                                 }
                                 StatusChip(
                                     text = result.classification,
@@ -454,7 +463,7 @@ fun AntivirusScannerScreen(
     selectedFinding?.let { finding ->
         AlertDialog(
             onDismissRequest = { selectedFinding = null },
-            icon = { Icon(Icons.Rounded.Warning, contentDescription = "Alert", tint = MaterialTheme.colorScheme.error) },
+            icon = { Icon(Icons.Rounded.Warning, contentDescription = "Threat Detected", tint = MaterialTheme.colorScheme.error) },
             title = { Text("App Threat Analysis", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -482,7 +491,7 @@ fun AntivirusScannerScreen(
                         selectedFinding = null
                     }
                 }) {
-                    Text("Uninstall", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    Text("Purge (Uninstall)", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -493,10 +502,10 @@ fun AntivirusScannerScreen(
                             selectedFinding = null
                         }
                     }) {
-                        Text("Freeze / Disable")
+                        Text("Quarantine (Freeze)")
                     }
                     TextButton(onClick = { selectedFinding = null }) {
-                        Text("Cancel")
+                        Text("Dismiss")
                     }
                 }
             }

@@ -6,7 +6,7 @@
 
     <application
         android:hasCode="true"
-        android:label="Thor App & APK Antivirus"
+        android:label="S.H.I.E.L.D."
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
 
         <!-- Tells Thor Core which class implements the contract -->
@@ -30,8 +30,8 @@
             android:name=".ConfigActivity"
             android:exported="true"
             android:excludeFromRecents="true"
-            android:label="Thor App & APK Antivirus"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+            android:label="S.H.I.E.L.D."
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>
                 <action android:name="com.valhalla.thor.extension.action.CONFIGURE" />
                 <category android:name="android.intent.category.DEFAULT" />
