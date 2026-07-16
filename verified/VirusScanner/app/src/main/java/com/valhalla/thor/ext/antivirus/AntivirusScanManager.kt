@@ -106,6 +106,7 @@ object AntivirusScanManager {
                 val staticEngine = StaticAnalysisEngine(context)
                 val sigVerifier = SignatureVerifier(context)
                 val permAuditor = PermissionAuditor(context)
+                val libScanner = StaticLibraryScanner()
                 vtClient = VirusTotalClient("e2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3")
 
                 if (scanType == 0) {
@@ -128,6 +129,18 @@ object AntivirusScanManager {
                                 null
                             }
                         }
+
+                        val appInfo = pm.getApplicationInfo(app.packageName, 0)
+                        val libScan = withContext(Dispatchers.IO) {
+                            try {
+                                libScanner.detectLibrariesInApk(appInfo.publicSourceDir)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                null
+                            }
+                        }
+                        val hasLibSu = libScan?.hasLibSu ?: false
+                        val hasHiddenApiBypass = libScan?.hasHiddenApiBypass ?: false
 
                         val sigPinValid = sigVerifier.verifyDeveloperSignaturePin(app.packageName)
                         val sigHash = sigVerifier.getSigningCertSha256(app.packageName)
@@ -169,7 +182,9 @@ object AntivirusScanManager {
                                     classification = classification,
                                     signatureHash = sigHash,
                                     auditResult = audit,
-                                    isStorageApk = false
+                                    isStorageApk = false,
+                                    hasLibSu = hasLibSu,
+                                    hasHiddenApiBypass = hasHiddenApiBypass
                                 )
                             )
                         }
@@ -223,6 +238,17 @@ object AntivirusScanManager {
                             }
                         }
 
+                        val libScan = withContext(Dispatchers.IO) {
+                            try {
+                                libScanner.detectLibrariesInApk(file.absolutePath)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                null
+                            }
+                        }
+                        val hasLibSu = libScan?.hasLibSu ?: false
+                        val hasHiddenApiBypass = libScan?.hasHiddenApiBypass ?: false
+
                         val audit = permAuditor.auditPermissionProfile(packageName)
 
                         val localClassification = when {
@@ -260,7 +286,9 @@ object AntivirusScanManager {
                                     signatureHash = null,
                                     auditResult = audit,
                                     isStorageApk = true,
-                                    apkFilePath = file.absolutePath
+                                    apkFilePath = file.absolutePath,
+                                    hasLibSu = hasLibSu,
+                                    hasHiddenApiBypass = hasHiddenApiBypass
                                 )
                             )
                         }

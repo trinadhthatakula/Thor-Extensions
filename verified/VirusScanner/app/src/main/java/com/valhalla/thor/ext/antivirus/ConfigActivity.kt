@@ -102,7 +102,9 @@ data class ScanResultItem(
     val signatureHash: String?,
     val auditResult: PermissionAuditResult? = null,
     val isStorageApk: Boolean = false,
-    val apkFilePath: String? = null
+    val apkFilePath: String? = null,
+    val hasLibSu: Boolean = false,
+    val hasHiddenApiBypass: Boolean = false
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -255,6 +257,47 @@ private fun ShieldConfigSheet(
                     .fillMaxWidth()
                     .padding(vertical = 12.dp)
             )
+
+            val lsposedActive = remember { LSPosedDetector().hasActiveHooks() }
+
+            // LSposed Hook Status Banner
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        if (lsposedActive) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                        else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                    )
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (lsposedActive) Icons.Rounded.Dangerous else Icons.Rounded.VerifiedUser,
+                        contentDescription = "LSPosed Status",
+                        tint = if (lsposedActive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "LSPosed Hook Status",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (lsposedActive) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+                Text(
+                    text = if (lsposedActive) "HOOKED / ACTIVE" else "SECURE / INACTIVE",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (lsposedActive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Scanning attention pulse
             Box(
@@ -447,6 +490,10 @@ private fun ShieldConfigSheet(
                         Text("• Requests Shizuku Access: ${if (audit.requestsShizuku) "YES" else "No"}", color = if (audit.requestsShizuku) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
                         Text("• Requests Root (Superuser): ${if (audit.requestsRoot) "YES" else "No"}", color = if (audit.requestsRoot) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline)
                     }
+
+                    Text("Embedded Frameworks & Engines:", fontWeight = FontWeight.Bold)
+                    Text("• Has topjohnwu libsu (Root Library): ${if (finding.hasLibSu) "YES (Contains Superuser bindings)" else "No"}", color = if (finding.hasLibSu) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                    Text("• Has LSPosed HiddenApiBypass: ${if (finding.hasHiddenApiBypass) "YES (Bypasses restriction filters)" else "No"}", color = if (finding.hasHiddenApiBypass) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline)
 
                     Text("SHA-256 Fingerprint:", fontWeight = FontWeight.Bold)
                     Text(finding.sha256, style = MaterialTheme.typography.labelSmall)
