@@ -367,7 +367,7 @@ private fun ShieldConfigSheet(
             // Real-Time Scanning Progression Label
             if (isScanning && currentScannedPackage.isNotEmpty()) {
                 Text(
-                    text = "Analyzing threat profile: $currentScannedPackage",
+                    text = "Scanning: $currentScannedPackage",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.padding(bottom = 8.dp),
@@ -381,21 +381,22 @@ private fun ShieldConfigSheet(
             // Real-time Metric Indicators (Stat Cards)
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .wrapContentWidth()
                     .padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 AsgardStatCard(
                     label = "Items Scanned",
                     value = scannedCount.toString(),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(140.dp),
                     icon = Icons.Rounded.Security,
                     iconTint = MaterialTheme.colorScheme.primary
                 )
                 AsgardStatCard(
                     label = "Threats Detected",
                     value = threatCount.toString(),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(140.dp),
                     icon = Icons.Rounded.BugReport,
                     iconTint = if (threatCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
                 )
@@ -429,7 +430,7 @@ private fun ShieldConfigSheet(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f, fill = false),
+                        .heightIn(max = 280.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(scanResults) { result ->
