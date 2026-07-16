@@ -28,7 +28,7 @@
       "minThorVersionCode": 1900,
       "minSdk": 28,
       "apkUrl": "https://github.com/trinadhthatakula/Thor-Extensions/releases/download/thor-automation-extension-v1.00.6/thor-automation-extension-1.00.6.apk",
-      "sha256": "d8167ec313ecb5ebf460252907c4bfe77c897d092f9460ef6c9571f3aa362c32",
+      "sha256": "f5bce17daed75330b93024d9221598dda60222744e5b074eb30ee8bf45a03f4e",
       "sourcePath": "verified/thor-automation-extension"
     }
   ]
