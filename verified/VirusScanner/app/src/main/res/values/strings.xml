@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Thor App &amp; APK Antivirus</string>
+    <string name="title_antivirus">Thor Antivirus Scanner</string>
+    <string name="scan_apps_label">Installed Apps</string>
+    <string name="scan_storage_label">Storage APKs</string>
+    <string name="no_threats_found">No threats found</string>
+    <string name="start_scan_desc">Start a scan to search for trojans or hijacked signature builds.</string>
+</resources>

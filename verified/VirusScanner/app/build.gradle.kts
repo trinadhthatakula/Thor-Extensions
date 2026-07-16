@@ -99,4 +99,10 @@ dependencies {
     // Asgard UI components are now BUNDLED: the config UI (ConfigActivity) renders in THIS app's OWN
     // process, so it needs its own full Asgard at runtime. Nothing @Composable crosses into Thor.
     implementation(libs.asgard)
+
+    // Ktor client & Serialization
+    implementation("io.ktor:ktor-client-core:2.3.8")
+    implementation("io.ktor:ktor-client-okhttp:2.3.8")
+    implementation("io.ktor:ktor-client-content-negotiation:2.3.8")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.8")
 }
