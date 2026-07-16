@@ -6,6 +6,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.util.Calendar
 
@@ -22,14 +26,14 @@ class AlarmReceiver : BroadcastReceiver() {
         // and the synchronous ContentProvider IPC off the main thread to prevent UI jank / ANRs.
         // goAsync keeps the receiver alive while the background thread runs.
         val pending = goAsync()
-        Thread {
+        CoroutineScope(Dispatchers.IO).launch {
             try {
                 val json = context.getSharedPreferences(Config.PREFS, Context.MODE_PRIVATE)
-                    .getString(Config.KEY_SAVED_CLUSTERS, null) ?: return@Thread
+                    .getString(Config.KEY_SAVED_CLUSTERS, null) ?: return@launch
                 val clusters = runCatching { Json.decodeFromString<List<AppCluster>>(json) }.getOrDefault(emptyList())
-                val cluster = clusters.firstOrNull { it.name == clusterName } ?: return@Thread
+                val cluster = clusters.firstOrNull { it.name == clusterName } ?: return@launch
                 val packages = cluster.packages
-                if (packages.isEmpty()) return@Thread
+                if (packages.isEmpty()) return@launch
 
                 // Perform the action (freeze / unfreeze)
                 ThorOps.run(context, action, packages)
@@ -38,10 +42,12 @@ class AlarmReceiver : BroadcastReceiver() {
                 val hour = if (action == "freeze") cluster.freezeHour else cluster.unfreezeHour
                 val minute = if (action == "freeze") cluster.freezeMinute else cluster.unfreezeMinute
                 scheduleAlarm(context, clusterName, action, hour, minute)
+            } catch (e: Exception) {
+                Log.e("AlarmReceiver", "Error executing scheduled cluster operation", e)
             } finally {
                 pending.finish()
             }
-        }.start()
+        }
     }
 
     companion object {

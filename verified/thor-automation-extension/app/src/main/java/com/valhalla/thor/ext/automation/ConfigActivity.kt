@@ -69,6 +69,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -499,6 +500,26 @@ private fun ClusterDetailsScreen(
     val packageList = cluster.packages
     val scope = rememberCoroutineScope()
     var refreshTrigger by remember { mutableStateOf(0) }
+    val pm = context.packageManager
+    var appDetailsMap by remember { mutableStateOf(emptyMap<String, Pair<String, Boolean>>()) }
+
+    LaunchedEffect(packageList, refreshTrigger) {
+        withContext(Dispatchers.IO) {
+            val map = packageList.associateWith { pkg ->
+                val label = runCatching {
+                    pm.getApplicationInfo(
+                        pkg,
+                        PackageManager.MATCH_UNINSTALLED_PACKAGES or PackageManager.MATCH_DISABLED_COMPONENTS,
+                    ).loadLabel(pm).toString()
+                }.getOrDefault(pkg)
+                val frozen = isPackageFrozen(pm, pkg)
+                Pair(label, frozen)
+            }
+            withContext(Dispatchers.Main) {
+                appDetailsMap = map
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -683,25 +704,10 @@ private fun ClusterDetailsScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                items(packageList) { pkg ->
-                    var appLabel by remember(pkg) { mutableStateOf(pkg) }
-                    var isFrozen by remember(pkg) { mutableStateOf(false) }
-
-                    LaunchedEffect(pkg, refreshTrigger) {
-                        withContext(Dispatchers.IO) {
-                            val label = runCatching {
-                                pm.getApplicationInfo(
-                                    pkg,
-                                    PackageManager.MATCH_UNINSTALLED_PACKAGES or PackageManager.MATCH_DISABLED_COMPONENTS,
-                                ).loadLabel(pm).toString()
-                            }.getOrDefault(pkg)
-                            val frozen = isPackageFrozen(pm, pkg)
-                            withContext(Dispatchers.Main) {
-                                appLabel = label
-                                isFrozen = frozen
-                            }
-                        }
-                    }
+                items(packageList, key = { it }) { pkg ->
+                    val details = appDetailsMap[pkg]
+                    val appLabel = details?.first ?: pkg
+                    val isFrozen = details?.second ?: false
 
                     val saturationMatrix = remember { ColorMatrix().apply { setToSaturation(0f) } }
                     val grayscaleFilter = remember(saturationMatrix) { ColorFilter.colorMatrix(saturationMatrix) }
@@ -771,8 +777,8 @@ private fun CreateEditClusterScreen(
     onBack: () -> Unit,
     onSave: (String, List<String>) -> Unit
 ) {
-    var clusterName by remember { mutableStateOf(editingCluster?.name ?: "") }
-    var searchQuery by remember { mutableStateOf("") }
+    var clusterName by rememberSaveable { mutableStateOf(editingCluster?.name ?: "") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val selectedPackages = remember { mutableStateListOf<String>() }
 
     LaunchedEffect(editingCluster) {
@@ -844,7 +850,7 @@ private fun CreateEditClusterScreen(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(filteredApps) { app ->
+                items(filteredApps, key = { it.packageName }) { app ->
                     val pm = context.packageManager
                     val appLabel = app.loadLabel(pm).toString()
                     val isSelected = selectedPackages.contains(app.packageName)
