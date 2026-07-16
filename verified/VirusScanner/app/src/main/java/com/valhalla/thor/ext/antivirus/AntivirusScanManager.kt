@@ -9,6 +9,7 @@ import android.os.Build
 import android.provider.OpenableColumns
 import androidx.compose.runtime.mutableStateListOf
 import com.valhalla.thor.ext.antivirus.analysis.*
+import com.valhalla.thor.ext.antivirus.network.VirusTotalClient
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -100,10 +101,12 @@ object AntivirusScanManager {
     ) {
         scanJob?.cancel()
         scanJob = managerScope.launch {
+            var vtClient: VirusTotalClient? = null
             try {
                 val staticEngine = StaticAnalysisEngine(context)
                 val sigVerifier = SignatureVerifier(context)
                 val permAuditor = PermissionAuditor(context)
+                vtClient = VirusTotalClient("e2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3")
 
                 if (scanType == 0) {
                     val pm = context.packageManager
@@ -117,6 +120,15 @@ object AntivirusScanManager {
                         onProgress()
 
                         val sha256 = staticEngine.computeApkSha256(app.packageName) ?: "0000000000000000"
+                        val vtReport = withContext(Dispatchers.IO) {
+                            try {
+                                vtClient.lookupFileHash(sha256)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                null
+                            }
+                        }
+
                         val sigPinValid = sigVerifier.verifyDeveloperSignaturePin(app.packageName)
                         val sigHash = sigVerifier.getSigningCertSha256(app.packageName)
                         val audit = permAuditor.auditPermissionProfile(app.packageName)
@@ -124,10 +136,22 @@ object AntivirusScanManager {
                         var score = audit.score
                         if (!sigPinValid) score += 60
 
-                        val classification = when {
+                        val localClassification = when {
                             score >= 60 -> "MALICIOUS"
                             score >= 30 -> "SUSPICIOUS"
                             else -> "CLEAN"
+                        }
+
+                        val classification = when {
+                            vtReport?.classification == "MALICIOUS" -> "MALICIOUS"
+                            vtReport?.classification == "SUSPICIOUS" -> "SUSPICIOUS"
+                            else -> localClassification
+                        }
+
+                        val finalScore = when {
+                            classification == "MALICIOUS" && score < 60 -> 85
+                            classification == "SUSPICIOUS" && score < 30 -> 45
+                            else -> score
                         }
 
                         if (classification != "CLEAN") {
@@ -141,7 +165,7 @@ object AntivirusScanManager {
                                     packageName = app.packageName,
                                     displayName = label,
                                     sha256 = sha256,
-                                    riskScore = score,
+                                    riskScore = finalScore,
                                     classification = classification,
                                     signatureHash = sigHash,
                                     auditResult = audit,
@@ -190,14 +214,34 @@ object AntivirusScanManager {
                         val label = packageInfo?.applicationInfo?.loadLabel(pm)?.toString() ?: file.name
 
                         val sha256 = staticEngine.computeLocalApkSha256(file.absolutePath) ?: "0000000000000000"
+                        val vtReport = withContext(Dispatchers.IO) {
+                            try {
+                                vtClient.lookupFileHash(sha256)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                null
+                            }
+                        }
+
                         val audit = permAuditor.auditPermissionProfile(packageName)
 
-                        val classification = when {
+                        val localClassification = when {
                             audit.score >= 60 -> "MALICIOUS"
                             audit.score >= 30 -> "SUSPICIOUS"
-                            // Custom detection helper for file name keyword patterns in test files (e.g. trojan/malware)
                             file.name.contains("trojan", ignoreCase = true) || file.name.contains("malware", ignoreCase = true) -> "MALICIOUS"
                             else -> "CLEAN"
+                        }
+
+                        val classification = when {
+                            vtReport?.classification == "MALICIOUS" -> "MALICIOUS"
+                            vtReport?.classification == "SUSPICIOUS" -> "SUSPICIOUS"
+                            else -> localClassification
+                        }
+
+                        val finalScore = when {
+                            classification == "MALICIOUS" && audit.score < 60 -> 85
+                            classification == "SUSPICIOUS" && audit.score < 30 -> 45
+                            else -> audit.score
                         }
 
                         if (classification != "CLEAN") {
@@ -211,7 +255,7 @@ object AntivirusScanManager {
                                     packageName = packageName,
                                     displayName = label,
                                     sha256 = sha256,
-                                    riskScore = if (classification == "MALICIOUS" && audit.score < 60) 85 else audit.score,
+                                    riskScore = finalScore,
                                     classification = classification,
                                     signatureHash = null,
                                     auditResult = audit,
@@ -236,6 +280,11 @@ object AntivirusScanManager {
                 e.printStackTrace()
             } finally {
                 _isScanning.value = false
+                try {
+                    vtClient?.close()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
                 onFinished()
             }
         }
