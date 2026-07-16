@@ -30,8 +30,8 @@ android {
         applicationId = "com.valhalla.thor.ext.automation"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 1005
-        versionName = "1.00.5"
+        versionCode = 1006
+        versionName = "1.00.6"
     }
 
     signingConfigs {
