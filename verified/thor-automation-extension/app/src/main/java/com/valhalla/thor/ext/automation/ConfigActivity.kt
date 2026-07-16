@@ -238,7 +238,12 @@ private fun AutomationConfigRoot(onExit: () -> Unit) {
         scope.launch { clustersList = withContext(Dispatchers.IO) { loadClusters(context) } }
     }
 
-    LaunchedEffect(Unit) { reload() }
+    LaunchedEffect(Unit) {
+        reload()
+        withContext(Dispatchers.IO) {
+            AlarmReceiver.rescheduleAllAlarms(context)
+        }
+    }
 
     BackHandler {
         when (currentScreen) {

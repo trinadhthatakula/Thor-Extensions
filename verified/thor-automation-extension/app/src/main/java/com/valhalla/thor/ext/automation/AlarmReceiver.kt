@@ -19,6 +19,22 @@ import java.util.Calendar
  */
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        val actionStr = intent.action
+        if (actionStr == Intent.ACTION_BOOT_COMPLETED || actionStr == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            Log.d("AlarmReceiver", "onReceive: System broadcast '$actionStr' received. Rescheduling all active alarms.")
+            val pending = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    rescheduleAllAlarms(context)
+                } catch (e: Exception) {
+                    Log.e("AlarmReceiver", "Error rescheduling alarms on boot/update", e)
+                } finally {
+                    pending.finish()
+                }
+            }
+            return
+        }
+
         val action = intent.getStringExtra("action") ?: "toggle"   // freeze | unfreeze | toggle
         val clusterName = intent.getStringExtra("cluster_name") ?: return
         Log.d("AlarmReceiver", "onReceive triggered: action=$action, clusterName=$clusterName")
@@ -64,6 +80,7 @@ class AlarmReceiver : BroadcastReceiver() {
 
     companion object {
         fun scheduleAlarm(context: Context, clusterName: String, action: String, hour: Int, minute: Int) {
+            cancelAlarm(context, clusterName, action) // Ensure existing alarm is cleanly canceled first to force updating on stubborn ROMs
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             val intent = Intent(context, AlarmReceiver::class.java).apply {
                 putExtra("cluster_name", clusterName)
@@ -127,6 +144,26 @@ class AlarmReceiver : BroadcastReceiver() {
             if (pendingIntent != null) {
                 alarmManager.cancel(pendingIntent)
                 pendingIntent.cancel()
+            }
+        }
+
+        fun rescheduleAllAlarms(context: Context) {
+            try {
+                val json = context.getSharedPreferences(Config.PREFS, Context.MODE_PRIVATE)
+                    .getString(Config.KEY_SAVED_CLUSTERS, null) ?: return
+                val clusters = runCatching { Json.decodeFromString<List<AppCluster>>(json) }.getOrDefault(emptyList())
+                for (cluster in clusters) {
+                    if (cluster.isFreezeScheduled) {
+                        Log.d("AlarmReceiver", "Restoring freeze schedule for cluster '${cluster.name}' at ${cluster.freezeHour}:${cluster.freezeMinute}")
+                        scheduleAlarm(context, cluster.name, "freeze", cluster.freezeHour, cluster.freezeMinute)
+                    }
+                    if (cluster.isUnfreezeScheduled) {
+                        Log.d("AlarmReceiver", "Restoring unfreeze schedule for cluster '${cluster.name}' at ${cluster.unfreezeHour}:${cluster.unfreezeMinute}")
+                        scheduleAlarm(context, cluster.name, "unfreeze", cluster.unfreezeHour, cluster.unfreezeMinute)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("AlarmReceiver", "Failed to reschedule alarms", e)
             }
         }
 
