@@ -47,7 +47,13 @@
         <!-- Alarm Receiver to receive background alarm triggers and notify Thor -->
         <receiver
             android:name="com.valhalla.thor.ext.automation.AlarmReceiver"
-            android:exported="true">
+            android:exported="false" />
+
+        <!-- Secure Boot/Update Receiver to restore alarms on startup -->
+        <receiver
+            android:name="com.valhalla.thor.ext.automation.BootReceiver"
+            android:exported="true"
+            android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />

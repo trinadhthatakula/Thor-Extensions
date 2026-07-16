@@ -792,18 +792,18 @@ private fun CreateEditClusterScreen(
         }
     }
 
-    val installedApps = remember {
+    val installedAppsWithLabels = remember {
         val pm = context.packageManager
         pm.getInstalledApplications(PackageManager.GET_META_DATA)
             .filter { (it.flags and ApplicationInfo.FLAG_SYSTEM) == 0 }
-            .sortedBy { it.loadLabel(pm).toString() }
+            .map { app -> Pair(app, app.loadLabel(pm).toString()) }
+            .sortedBy { it.second }
     }
 
     val filteredApps = remember(searchQuery) {
-        val pm = context.packageManager
-        installedApps.filter {
-            it.loadLabel(pm).toString().contains(searchQuery, ignoreCase = true) ||
-                    it.packageName.contains(searchQuery, ignoreCase = true)
+        installedAppsWithLabels.filter { (app, label) ->
+            label.contains(searchQuery, ignoreCase = true) ||
+                    app.packageName.contains(searchQuery, ignoreCase = true)
         }
     }
 
@@ -854,9 +854,7 @@ private fun CreateEditClusterScreen(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(filteredApps, key = { it.packageName }) { app ->
-                    val pm = context.packageManager
-                    val appLabel = app.loadLabel(pm).toString()
+                items(filteredApps, key = { it.first.packageName }) { (app, appLabel) ->
                     val isSelected = selectedPackages.contains(app.packageName)
 
                     val src = remember { MutableInteractionSource() }

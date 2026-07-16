@@ -19,22 +19,6 @@ import java.util.Calendar
  */
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val actionStr = intent.action
-        if (actionStr == Intent.ACTION_BOOT_COMPLETED || actionStr == Intent.ACTION_MY_PACKAGE_REPLACED) {
-            Log.d("AlarmReceiver", "onReceive: System broadcast '$actionStr' received. Rescheduling all active alarms.")
-            val pending = goAsync()
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    rescheduleAllAlarms(context)
-                } catch (e: Exception) {
-                    Log.e("AlarmReceiver", "Error rescheduling alarms on boot/update", e)
-                } finally {
-                    pending.finish()
-                }
-            }
-            return
-        }
-
         val action = intent.getStringExtra("action") ?: "toggle"   // freeze | unfreeze | toggle
         val clusterName = intent.getStringExtra("cluster_name") ?: return
         Log.d("AlarmReceiver", "onReceive triggered: action=$action, clusterName=$clusterName")
@@ -101,12 +85,11 @@ class AlarmReceiver : BroadcastReceiver() {
             )
 
             val calendar = Calendar.getInstance().apply {
-                timeInMillis = System.currentTimeMillis()
                 set(Calendar.HOUR_OF_DAY, hour)
                 set(Calendar.MINUTE, minute)
                 set(Calendar.SECOND, 0)
                 set(Calendar.MILLISECOND, 0)
-                if (before(Calendar.getInstance())) {
+                if (timeInMillis <= System.currentTimeMillis()) {
                     add(Calendar.DAY_OF_YEAR, 1)
                 }
             }
@@ -191,6 +174,25 @@ class AlarmReceiver : BroadcastReceiver() {
 
             // 3. Cancel new unfreeze alarm
             cancelAlarm(context, clusterName, "unfreeze")
+        }
+    }
+}
+
+class BootReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val actionStr = intent.action
+        if (actionStr == Intent.ACTION_BOOT_COMPLETED || actionStr == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            Log.d("BootReceiver", "onReceive: System broadcast '$actionStr' received. Rescheduling all active alarms.")
+            val pending = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    AlarmReceiver.rescheduleAllAlarms(context)
+                } catch (e: Exception) {
+                    Log.e("BootReceiver", "Error rescheduling alarms on boot/update", e)
+                } finally {
+                    pending.finish()
+                }
+            }
         }
     }
 }
