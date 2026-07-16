@@ -319,8 +319,7 @@ private fun AutomationConfigRoot(onExit: () -> Unit) {
                     scope.launch {
                         val updated = clustersList.toMutableList()
                         val idx = updated.indexOfFirst { it.name == name }
-                        val isSched = editingCluster?.isScheduled ?: false
-                        val newCluster = AppCluster(name, packages, isSched)
+                        val newCluster = editingCluster?.copy(packages = packages) ?: AppCluster(name, packages)
                         if (idx >= 0) updated[idx] = newCluster else updated.add(newCluster)
                         withContext(Dispatchers.IO) { saveClusters(context, updated) }
                         reload()

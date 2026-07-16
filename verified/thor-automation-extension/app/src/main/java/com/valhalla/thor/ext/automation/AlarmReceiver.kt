@@ -21,6 +21,7 @@ class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.getStringExtra("action") ?: "toggle"   // freeze | unfreeze | toggle
         val clusterName = intent.getStringExtra("cluster_name") ?: return
+        Log.d("AlarmReceiver", "onReceive triggered: action=$action, clusterName=$clusterName")
 
         // BroadcastReceiver.onReceive is on the main thread. Move SharedPreferences disk read, JSON parsing,
         // and the synchronous ContentProvider IPC off the main thread to prevent UI jank / ANRs.
@@ -29,18 +30,29 @@ class AlarmReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val json = context.getSharedPreferences(Config.PREFS, Context.MODE_PRIVATE)
-                    .getString(Config.KEY_SAVED_CLUSTERS, null) ?: return@launch
+                    .getString(Config.KEY_SAVED_CLUSTERS, null) ?: run {
+                        Log.w("AlarmReceiver", "No saved clusters found in SharedPreferences")
+                        return@launch
+                    }
                 val clusters = runCatching { Json.decodeFromString<List<AppCluster>>(json) }.getOrDefault(emptyList())
-                val cluster = clusters.firstOrNull { it.name == clusterName } ?: return@launch
+                val cluster = clusters.firstOrNull { it.name == clusterName } ?: run {
+                    Log.w("AlarmReceiver", "Cluster not found: $clusterName")
+                    return@launch
+                }
                 val packages = cluster.packages
-                if (packages.isEmpty()) return@launch
+                if (packages.isEmpty()) {
+                    Log.w("AlarmReceiver", "Cluster packages list is empty for $clusterName")
+                    return@launch
+                }
 
-                // Perform the action (freeze / unfreeze)
-                ThorOps.run(context, action, packages)
+                Log.d("AlarmReceiver", "Executing operation '$action' for packages: $packages")
+                val success = ThorOps.run(context, action, packages)
+                Log.d("AlarmReceiver", "Operation '$action' completed with success=$success")
 
                 // Reschedule for tomorrow at the same time
                 val hour = if (action == "freeze") cluster.freezeHour else cluster.unfreezeHour
                 val minute = if (action == "freeze") cluster.freezeMinute else cluster.unfreezeMinute
+                Log.d("AlarmReceiver", "Rescheduling alarm for action=$action at tomorrow $hour:$minute")
                 scheduleAlarm(context, clusterName, action, hour, minute)
             } catch (e: Exception) {
                 Log.e("AlarmReceiver", "Error executing scheduled cluster operation", e)
