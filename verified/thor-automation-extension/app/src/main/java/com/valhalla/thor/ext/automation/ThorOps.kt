@@ -22,8 +22,8 @@ object ThorOps {
             val ok = runCatching {
                 context.contentResolver.call(Uri.parse("content://$thorPkg$AUTHORITY_SUFFIX"), action, null, extras)?.getBoolean(KEY_OK)
             }.getOrNull()
-            if (ok != null) return ok // provider resolved (this is the live Thor); use its verdict
+            if (ok == true) return true // operation succeeded on this provider!
         }
-        return false // no Thor ops provider resolved
+        return false // no Thor ops provider succeeded
     }
 }

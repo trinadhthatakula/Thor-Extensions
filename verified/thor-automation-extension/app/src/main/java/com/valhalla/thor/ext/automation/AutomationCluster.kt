@@ -14,7 +14,13 @@ import kotlinx.serialization.Serializable
 data class AppCluster(
     val name: String,
     val packages: List<String>,
-    val isScheduled: Boolean = false
+    val isScheduled: Boolean = false,
+    val freezeHour: Int = 21,
+    val freezeMinute: Int = 0,
+    val isFreezeScheduled: Boolean = false,
+    val unfreezeHour: Int = 7,
+    val unfreezeMinute: Int = 0,
+    val isUnfreezeScheduled: Boolean = false
 )
 
 /**

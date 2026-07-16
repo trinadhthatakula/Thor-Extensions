@@ -2,6 +2,7 @@
 
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- The config UI runs in THIS process now (not Thor's), so it must enumerate installed apps and
          load their icons/labels itself. On Android 11+ (targetSdk 37) that needs full package
          visibility. Thor already holds this; the picker/detail grid would otherwise come up empty. -->
@@ -47,6 +48,17 @@
         <receiver
             android:name="com.valhalla.thor.ext.automation.AlarmReceiver"
             android:exported="false" />
+
+        <!-- Secure Boot/Update Receiver to restore alarms on startup -->
+        <receiver
+            android:name="com.valhalla.thor.ext.automation.BootReceiver"
+            android:exported="true"
+            android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 </manifest>

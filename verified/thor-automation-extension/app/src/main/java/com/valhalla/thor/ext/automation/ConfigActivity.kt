@@ -69,6 +69,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,6 +86,11 @@ import coil3.compose.AsyncImage
 import com.valhalla.asgard.components.AsgardActionItem
 import com.valhalla.asgard.components.AsgardHeader
 import com.valhalla.asgard.components.StatusChip
+import com.valhalla.asgard.components.AsgardEmptyState
+import com.valhalla.asgard.components.AsgardSectionCard
+import com.valhalla.asgard.components.AsgardSettingRow
+import com.valhalla.asgard.components.AsgardSettingToggleRow
+import com.valhalla.asgard.components.AsgardSearchBar
 import com.valhalla.asgard.expressivePress
 import com.valhalla.thor.extension.api.ThorExtensionContract
 import kotlinx.coroutines.Dispatchers
@@ -139,7 +145,24 @@ private enum class AutoScreen { CLUSTERS_LIST, CREATE_EDIT_CLUSTER, CLUSTER_DETA
 private fun loadClusters(context: Context): List<AppCluster> {
     val json = context.getSharedPreferences(Config.PREFS, Context.MODE_PRIVATE)
         .getString(Config.KEY_SAVED_CLUSTERS, null) ?: return emptyList()
-    return runCatching { Json.decodeFromString<List<AppCluster>>(json) }.getOrDefault(emptyList())
+    val rawList = runCatching { Json.decodeFromString<List<AppCluster>>(json) }.getOrDefault(emptyList())
+
+    // Auto-migrate legacy isScheduled schedule to isFreezeScheduled schedule
+    var modified = false
+    val migrated = rawList.map { cluster ->
+        if (cluster.isScheduled && !cluster.isFreezeScheduled) {
+            modified = true
+            cluster.copy(isScheduled = false, isFreezeScheduled = true)
+        } else {
+            cluster
+        }
+    }
+
+    if (modified) {
+        saveClusters(context, migrated)
+    }
+
+    return migrated
 }
 
 /** Persists the cluster list to the config prefs; [AlarmReceiver] reads it back to resolve packages. */
@@ -148,6 +171,17 @@ private fun saveClusters(context: Context, clusters: List<AppCluster>) {
         .edit()
         .putString(Config.KEY_SAVED_CLUSTERS, Json.encodeToString(clusters))
         .apply()
+}
+
+/** Utility to format an hour/minute pair to standard 12-hour AM/PM string. */
+private fun formatTime(hour: Int, minute: Int): String {
+    val amPm = if (hour < 12) "AM" else "PM"
+    val displayHour = when {
+        hour == 0 -> 12
+        hour > 12 -> hour - 12
+        else -> hour
+    }
+    return String.format("%02d:%02d %s", displayHour, minute, amPm)
 }
 
 /** True if [pkg] is currently frozen (disabled), read locally without root. */
@@ -204,7 +238,12 @@ private fun AutomationConfigRoot(onExit: () -> Unit) {
         scope.launch { clustersList = withContext(Dispatchers.IO) { loadClusters(context) } }
     }
 
-    LaunchedEffect(Unit) { reload() }
+    LaunchedEffect(Unit) {
+        reload()
+        withContext(Dispatchers.IO) {
+            AlarmReceiver.rescheduleAllAlarms(context)
+        }
+    }
 
     BackHandler {
         when (currentScreen) {
@@ -254,14 +293,15 @@ private fun AutomationConfigRoot(onExit: () -> Unit) {
                         scope.launch {
                             val updated = clustersList.filter { it.name != name }
                             withContext(Dispatchers.IO) { saveClusters(context, updated) }
+                            AlarmReceiver.cancelAllAlarms(context, name)
                             reload()
                             currentScreen = AutoScreen.CLUSTERS_LIST
                         }
                     },
-                    onScheduleToggle = { name, scheduleEnabled ->
+                    onUpdateCluster = { updatedCluster ->
                         scope.launch {
                             val updated = clustersList.map {
-                                if (it.name == name) it.copy(isScheduled = scheduleEnabled) else it
+                                if (it.name == updatedCluster.name) updatedCluster else it
                             }
                             withContext(Dispatchers.IO) { saveClusters(context, updated) }
                             reload()
@@ -284,8 +324,7 @@ private fun AutomationConfigRoot(onExit: () -> Unit) {
                     scope.launch {
                         val updated = clustersList.toMutableList()
                         val idx = updated.indexOfFirst { it.name == name }
-                        val isSched = editingCluster?.isScheduled ?: false
-                        val newCluster = AppCluster(name, packages, isSched)
+                        val newCluster = editingCluster?.copy(packages = packages) ?: AppCluster(name, packages)
                         if (idx >= 0) updated[idx] = newCluster else updated.add(newCluster)
                         withContext(Dispatchers.IO) { saveClusters(context, updated) }
                         reload()
@@ -343,26 +382,21 @@ private fun ClustersListScreen(
                         .weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "No Clusters Saved",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "Tap + to create your first app group.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    AsgardEmptyState(
+                        text = "No Clusters Saved",
+                        description = "Create custom app groups to freeze/unfreeze them together manually or on a daily schedule.",
+                        icon = Icons.Default.Info,
+                        action = {
+                            Button(
+                                onClick = onAddCluster,
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.Add, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Add First Cluster", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    )
                 }
             } else {
                 LazyColumn(
@@ -396,8 +430,20 @@ private fun ClustersListScreen(
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
+                                    val scheduleText = when {
+                                        cluster.isFreezeScheduled && cluster.isUnfreezeScheduled -> {
+                                            "Freeze ${formatTime(cluster.freezeHour, cluster.freezeMinute)} • Unfreeze ${formatTime(cluster.unfreezeHour, cluster.unfreezeMinute)}"
+                                        }
+                                        cluster.isFreezeScheduled -> {
+                                            "Freeze ${formatTime(cluster.freezeHour, cluster.freezeMinute)}"
+                                        }
+                                        cluster.isUnfreezeScheduled -> {
+                                            "Unfreeze ${formatTime(cluster.unfreezeHour, cluster.unfreezeMinute)}"
+                                        }
+                                        else -> "No schedule"
+                                    }
                                     Text(
-                                        text = "${cluster.packages.size} apps",
+                                        text = "${cluster.packages.size} apps • $scheduleText",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -452,13 +498,32 @@ private fun ClusterDetailsScreen(
     onBack: () -> Unit,
     onEditCluster: (String) -> Unit,
     onDeleteCluster: (String) -> Unit,
-    onScheduleToggle: (String, Boolean) -> Unit
+    onUpdateCluster: (AppCluster) -> Unit
 ) {
     val clusterName = cluster.name
     val packageList = cluster.packages
     val scope = rememberCoroutineScope()
-    var isScheduled by remember(cluster) { mutableStateOf(cluster.isScheduled) }
     var refreshTrigger by remember { mutableStateOf(0) }
+    val pm = context.packageManager
+    var appDetailsMap by remember { mutableStateOf(emptyMap<String, Pair<String, Boolean>>()) }
+
+    LaunchedEffect(packageList, refreshTrigger) {
+        withContext(Dispatchers.IO) {
+            val map = packageList.associateWith { pkg ->
+                val label = runCatching {
+                    pm.getApplicationInfo(
+                        pkg,
+                        PackageManager.MATCH_UNINSTALLED_PACKAGES or PackageManager.MATCH_DISABLED_COMPONENTS,
+                    ).loadLabel(pm).toString()
+                }.getOrDefault(pkg)
+                val frozen = isPackageFrozen(pm, pkg)
+                Pair(label, frozen)
+            }
+            withContext(Dispatchers.Main) {
+                appDetailsMap = map
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -495,11 +560,6 @@ private fun ClusterDetailsScreen(
                     label = "Freeze",
                     onClick = {
                         Toast.makeText(context, "Freezing cluster…", Toast.LENGTH_SHORT).show()
-                        // Refresh AFTER the op lands. ThorOps.run is a synchronous IPC to Thor
-                        // (cold-start + `pm disable`); bumping refreshTrigger inline re-read the
-                        // still-active state before the freeze committed, so the grid showed a stale
-                        // "Active" until a second tap. Sequencing the bump after run() returns reads
-                        // the fresh frozen state.
                         scope.launch {
                             withContext(Dispatchers.IO) { ThorOps.run(context, "freeze", cluster.packages) }
                             refreshTrigger++
@@ -513,60 +573,11 @@ private fun ClusterDetailsScreen(
                     label = "Unfreeze",
                     onClick = {
                         Toast.makeText(context, "Unfreezing cluster…", Toast.LENGTH_SHORT).show()
-                        // Same ordering as Freeze: refresh only after the unfreeze IPC returns.
                         scope.launch {
                             withContext(Dispatchers.IO) { ThorOps.run(context, "unfreeze", cluster.packages) }
                             refreshTrigger++
                         }
                     }
-                )
-
-                AsgardActionItem(
-                    icon = Icons.Default.Notifications,
-                    label = if (isScheduled) "Active" else "9PM Daily",
-                    onClick = {
-                        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-                        val intent = Intent().setClassName("com.valhalla.thor.ext.automation", "com.valhalla.thor.ext.automation.AlarmReceiver").apply {
-                            putExtra("cluster_name", clusterName)
-                            putExtra("action", "freeze")
-                        }
-                        val pendingIntent = PendingIntent.getBroadcast(
-                            context,
-                            clusterName.hashCode(),
-                            intent,
-                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                        )
-
-                        if (isScheduled) {
-                            alarmManager.cancel(pendingIntent)
-                            onScheduleToggle(clusterName, false)
-                            isScheduled = false
-                            Toast.makeText(context, "Schedule removed", Toast.LENGTH_SHORT).show()
-                        } else {
-                            val calendar = Calendar.getInstance().apply {
-                                timeInMillis = System.currentTimeMillis()
-                                set(Calendar.HOUR_OF_DAY, 21)
-                                set(Calendar.MINUTE, 0)
-                                set(Calendar.SECOND, 0)
-                                if (before(Calendar.getInstance())) {
-                                    add(Calendar.DAY_OF_YEAR, 1)
-                                }
-                            }
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                if (alarmManager.canScheduleExactAlarms()) {
-                                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
-                                } else {
-                                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
-                                }
-                            } else {
-                                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
-                            }
-                            onScheduleToggle(clusterName, true)
-                            isScheduled = true
-                            Toast.makeText(context, "Scheduled daily 9:00 PM", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    iconTint = if (isScheduled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 AsgardActionItem(
@@ -581,6 +592,93 @@ private fun ClusterDetailsScreen(
                     onClick = { onDeleteCluster(clusterName) },
                     iconTint = MaterialTheme.colorScheme.error
                 )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            AsgardSectionCard(
+                title = "Automated Schedule",
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                AsgardSettingToggleRow(
+                    title = "Auto-Freeze Daily",
+                    checked = cluster.isFreezeScheduled,
+                    onCheckedChange = { checked ->
+                        val updated = cluster.copy(isFreezeScheduled = checked)
+                        if (checked) {
+                            AlarmReceiver.scheduleAlarm(context, clusterName, "freeze", cluster.freezeHour, cluster.freezeMinute)
+                            Toast.makeText(context, "Freeze scheduled daily at ${formatTime(cluster.freezeHour, cluster.freezeMinute)}", Toast.LENGTH_SHORT).show()
+                        } else {
+                            AlarmReceiver.cancelAlarm(context, clusterName, "freeze")
+                            Toast.makeText(context, "Freeze schedule removed", Toast.LENGTH_SHORT).show()
+                        }
+                        onUpdateCluster(updated)
+                    },
+                    subtitle = "Automatically freeze cluster apps daily"
+                )
+
+                if (cluster.isFreezeScheduled) {
+                    AsgardSettingRow(
+                        title = "Freeze Time",
+                        value = formatTime(cluster.freezeHour, cluster.freezeMinute),
+                        icon = Icons.Default.Lock,
+                        onClick = {
+                            android.app.TimePickerDialog(
+                                context,
+                                { _, hour, minute ->
+                                    val updated = cluster.copy(freezeHour = hour, freezeMinute = minute)
+                                    AlarmReceiver.scheduleAlarm(context, clusterName, "freeze", hour, minute)
+                                    onUpdateCluster(updated)
+                                    Toast.makeText(context, "Freeze rescheduled to ${formatTime(hour, minute)}", Toast.LENGTH_SHORT).show()
+                                },
+                                cluster.freezeHour,
+                                cluster.freezeMinute,
+                                false
+                            ).show()
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                AsgardSettingToggleRow(
+                    title = "Auto-Unfreeze Daily",
+                    checked = cluster.isUnfreezeScheduled,
+                    onCheckedChange = { checked ->
+                        val updated = cluster.copy(isUnfreezeScheduled = checked)
+                        if (checked) {
+                            AlarmReceiver.scheduleAlarm(context, clusterName, "unfreeze", cluster.unfreezeHour, cluster.unfreezeMinute)
+                            Toast.makeText(context, "Unfreeze scheduled daily at ${formatTime(cluster.unfreezeHour, cluster.unfreezeMinute)}", Toast.LENGTH_SHORT).show()
+                        } else {
+                            AlarmReceiver.cancelAlarm(context, clusterName, "unfreeze")
+                            Toast.makeText(context, "Unfreeze schedule removed", Toast.LENGTH_SHORT).show()
+                        }
+                        onUpdateCluster(updated)
+                    },
+                    subtitle = "Automatically unfreeze cluster apps daily"
+                )
+
+                if (cluster.isUnfreezeScheduled) {
+                    AsgardSettingRow(
+                        title = "Unfreeze Time",
+                        value = formatTime(cluster.unfreezeHour, cluster.unfreezeMinute),
+                        icon = Icons.Default.Refresh,
+                        onClick = {
+                            android.app.TimePickerDialog(
+                                context,
+                                { _, hour, minute ->
+                                    val updated = cluster.copy(unfreezeHour = hour, unfreezeMinute = minute)
+                                    AlarmReceiver.scheduleAlarm(context, clusterName, "unfreeze", hour, minute)
+                                    onUpdateCluster(updated)
+                                    Toast.makeText(context, "Unfreeze rescheduled to ${formatTime(hour, minute)}", Toast.LENGTH_SHORT).show()
+                                },
+                                cluster.unfreezeHour,
+                                cluster.unfreezeMinute,
+                                false
+                            ).show()
+                        }
+                    )
+                }
             }
 
             // Clusters always freeze via disable/enable — Thor's Suspend mode does not apply here (its
@@ -610,25 +708,10 @@ private fun ClusterDetailsScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                items(packageList) { pkg ->
-                    var appLabel by remember(pkg) { mutableStateOf(pkg) }
-                    var isFrozen by remember(pkg) { mutableStateOf(false) }
-
-                    LaunchedEffect(pkg, refreshTrigger) {
-                        withContext(Dispatchers.IO) {
-                            val label = runCatching {
-                                pm.getApplicationInfo(
-                                    pkg,
-                                    PackageManager.MATCH_UNINSTALLED_PACKAGES or PackageManager.MATCH_DISABLED_COMPONENTS,
-                                ).loadLabel(pm).toString()
-                            }.getOrDefault(pkg)
-                            val frozen = isPackageFrozen(pm, pkg)
-                            withContext(Dispatchers.Main) {
-                                appLabel = label
-                                isFrozen = frozen
-                            }
-                        }
-                    }
+                items(packageList, key = { it }) { pkg ->
+                    val details = appDetailsMap[pkg]
+                    val appLabel = details?.first ?: pkg
+                    val isFrozen = details?.second ?: false
 
                     val saturationMatrix = remember { ColorMatrix().apply { setToSaturation(0f) } }
                     val grayscaleFilter = remember(saturationMatrix) { ColorFilter.colorMatrix(saturationMatrix) }
@@ -698,8 +781,8 @@ private fun CreateEditClusterScreen(
     onBack: () -> Unit,
     onSave: (String, List<String>) -> Unit
 ) {
-    var clusterName by remember { mutableStateOf(editingCluster?.name ?: "") }
-    var searchQuery by remember { mutableStateOf("") }
+    var clusterName by rememberSaveable { mutableStateOf(editingCluster?.name ?: "") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val selectedPackages = remember { mutableStateListOf<String>() }
 
     LaunchedEffect(editingCluster) {
@@ -709,18 +792,18 @@ private fun CreateEditClusterScreen(
         }
     }
 
-    val installedApps = remember {
+    val installedAppsWithLabels = remember {
         val pm = context.packageManager
         pm.getInstalledApplications(PackageManager.GET_META_DATA)
             .filter { (it.flags and ApplicationInfo.FLAG_SYSTEM) == 0 }
-            .sortedBy { it.loadLabel(pm).toString() }
+            .map { app -> Pair(app, app.loadLabel(pm).toString()) }
+            .sortedBy { it.second }
     }
 
     val filteredApps = remember(searchQuery) {
-        val pm = context.packageManager
-        installedApps.filter {
-            it.loadLabel(pm).toString().contains(searchQuery, ignoreCase = true) ||
-                    it.packageName.contains(searchQuery, ignoreCase = true)
+        installedAppsWithLabels.filter { (app, label) ->
+            label.contains(searchQuery, ignoreCase = true) ||
+                    app.packageName.contains(searchQuery, ignoreCase = true)
         }
     }
 
@@ -752,11 +835,10 @@ private fun CreateEditClusterScreen(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
             )
 
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                label = { Text("Search Apps") },
-                shape = RoundedCornerShape(12.dp),
+            AsgardSearchBar(
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                placeholder = "Search apps…",
                 modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
             )
 
@@ -772,9 +854,7 @@ private fun CreateEditClusterScreen(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(filteredApps) { app ->
-                    val pm = context.packageManager
-                    val appLabel = app.loadLabel(pm).toString()
+                items(filteredApps, key = { it.first.packageName }) { (app, appLabel) ->
                     val isSelected = selectedPackages.contains(app.packageName)
 
                     val src = remember { MutableInteractionSource() }
