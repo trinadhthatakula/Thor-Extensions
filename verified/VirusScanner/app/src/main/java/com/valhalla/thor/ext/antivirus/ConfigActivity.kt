@@ -13,6 +13,8 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -113,12 +115,12 @@ private fun ShieldConfigSheet(
     val scope = rememberCoroutineScope()
 
     var selectedTab by remember { mutableStateOf(0) } // 0 = Installed Apps, 1 = Storage APKs
-    var isScanning by remember { mutableStateOf(false) }
-    var scannedCount by remember { mutableStateOf(0) }
-    var threatCount by remember { mutableStateOf(0) }
-    var currentScannedPackage by remember { mutableStateOf("") }
+    val isScanning by AntivirusScanManager.isScanning.collectAsStateWithLifecycle()
+    val scannedCount by AntivirusScanManager.scannedCount.collectAsStateWithLifecycle()
+    val threatCount by AntivirusScanManager.threatCount.collectAsStateWithLifecycle()
+    val currentScannedPackage by AntivirusScanManager.currentScannedPackage.collectAsStateWithLifecycle()
     
-    val scanResults = remember { mutableStateListOf<ScanResultItem>() }
+    val scanResults = AntivirusScanManager.scanResults
     var selectedFinding by remember { mutableStateOf<ScanResultItem?>(null) }
     var selectedFilter by remember { mutableStateOf("ALL") }
 
@@ -135,138 +137,36 @@ private fun ShieldConfigSheet(
         )
     )
 
-    val staticEngine = remember { StaticAnalysisEngine(context) }
-    val sigVerifier = remember { SignatureVerifier(context) }
-    val permAuditor = remember { PermissionAuditor(context) }
-    val vtClient = remember { VirusTotalClient("e2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3") }
     val privilegedManager = remember { PrivilegedActionManager(context) }
 
-    // Start/Stop scan logic
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            AntivirusScanManager.startScan(context, selectedTab)
+        } else {
+            Toast.makeText(context, "Notification permission is required for background scanning progress.", Toast.LENGTH_LONG).show()
+        }
+    }
+
     val performScan: () -> Unit = {
-        isScanning = true
-        scanResults.clear()
-        scannedCount = 0
-        threatCount = 0
-        currentScannedPackage = ""
         selectedFilter = "ALL"
-
-        scope.launch(Dispatchers.Default) {
-            try {
-                if (selectedTab == 0) {
-                    // Scan Installed Apps
-                    val pm = context.packageManager
-                    val installedApps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-                        .filter { (it.flags and ApplicationInfo.FLAG_SYSTEM) == 0 }
-
-                    for (app in installedApps) {
-                        if (!isScanning) break
-                        currentScannedPackage = app.loadLabel(pm).toString()
-                        
-                        val sha256 = staticEngine.computeApkSha256(app.packageName) ?: "0000000000000000"
-                        val sigPinValid = sigVerifier.verifyDeveloperSignaturePin(app.packageName)
-                        val sigHash = sigVerifier.getSigningCertSha256(app.packageName)
-                        val audit = permAuditor.auditPermissionProfile(app.packageName)
-
-                        // Heuristics calculation
-                        var score = audit.score
-                        if (!sigPinValid) score += 60 // Discrepancy is highly malicious
-
-                        val classification = when {
-                            score >= 60 -> "MALICIOUS"
-                            score >= 30 -> "SUSPICIOUS"
-                            else -> "CLEAN"
-                        }
-
-                        if (classification != "CLEAN") {
-                            withContext(Dispatchers.Main) {
-                                threatCount++
-                            }
-                        }
-
-                        withContext(Dispatchers.Main) {
-                            scannedCount++
-                            scanResults.add(
-                                ScanResultItem(
-                                    packageName = app.packageName,
-                                    displayName = app.loadLabel(pm).toString(),
-                                    sha256 = sha256,
-                                    riskScore = score,
-                                    classification = classification,
-                                    signatureHash = sigHash,
-                                    auditResult = audit,
-                                    isStorageApk = false
-                                )
-                            )
-                        }
-                        delay(120) // Visual progression pace
-                    }
-                } else {
-                    // Scan Storage APKs
-                    val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                    val apkFiles = mutableListOf<File>()
-                    
-                    if (downloadDir.exists() && downloadDir.isDirectory) {
-                        downloadDir.listFiles { file -> file.name.endsWith(".apk") }?.forEach {
-                            apkFiles.add(it)
-                        }
-                    }
-
-                    if (apkFiles.isEmpty()) {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "No APKs found in Downloads directory.", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-
-                    for (file in apkFiles) {
-                        if (!isScanning) break
-                        currentScannedPackage = file.name
-                        
-                        val sha256 = staticEngine.computeLocalApkSha256(file.absolutePath) ?: "0000000000000000"
-                        
-                        val classification = if (file.name.contains("trojan", ignoreCase = true) || file.name.contains("malware", ignoreCase = true)) {
-                            "MALICIOUS"
-                        } else {
-                            "CLEAN"
-                        }
-
-                        if (classification != "CLEAN") {
-                            withContext(Dispatchers.Main) {
-                                threatCount++
-                            }
-                        }
-
-                        withContext(Dispatchers.Main) {
-                            scannedCount++
-                            scanResults.add(
-                                ScanResultItem(
-                                    packageName = file.name,
-                                    displayName = file.name,
-                                    sha256 = sha256,
-                                    riskScore = if (classification == "MALICIOUS") 90 else 0,
-                                    classification = classification,
-                                    signatureHash = "N/A",
-                                    isStorageApk = true,
-                                    apkFilePath = file.absolutePath
-                                )
-                            )
-                        }
-                        delay(250)
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                isScanning = false
+        if (Build.VERSION.SDK_INT >= 33 && 
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            
+            val granted = privilegedManager.executePrivilegedGrant(context.packageName, "android.permission.POST_NOTIFICATIONS", executorBinder)
+            if (granted) {
+                AntivirusScanManager.startScan(context, selectedTab)
+            } else {
+                permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
             }
+        } else {
+            AntivirusScanManager.startScan(context, selectedTab)
         }
     }
 
     BackHandler {
-        if (isScanning) {
-            isScanning = false
-        } else {
-            onDismiss()
-        }
+        onDismiss()
     }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -319,11 +219,7 @@ private fun ShieldConfigSheet(
                 selectedIndex = selectedTab,
                 onItemSelected = { 
                     selectedTab = it 
-                    isScanning = false
-                    scanResults.clear()
-                    scannedCount = 0
-                    threatCount = 0
-                    currentScannedPackage = ""
+                    AntivirusScanManager.stopScan(context)
                     selectedFilter = "ALL"
                 },
                 modifier = Modifier
@@ -346,7 +242,7 @@ private fun ShieldConfigSheet(
                     Button(
                         onClick = { 
                             if (isScanning) {
-                                isScanning = false
+                                AntivirusScanManager.stopScan(context)
                             } else {
                                 performScan()
                             }

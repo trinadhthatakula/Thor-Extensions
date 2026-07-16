@@ -73,6 +73,22 @@ class PrivilegedActionManager(private val context: Context) {
         return false
     }
 
+    /**
+     * Silent Grant uses privileged `pm grant` commands to automatically authorize permission requests.
+     */
+    fun executePrivilegedGrant(packageName: String, permission: String, executorBinder: IBinder?): Boolean {
+        Log.i(TAG, "Attempting privileged grant for $permission to $packageName")
+        if (executorBinder != null) {
+            val command = "pm grant $packageName $permission"
+            val success = runPrivilegedCommand(command, executorBinder)
+            if (success) {
+                Log.i(TAG, "Privileged permission grant succeeded for $permission")
+                return true
+            }
+        }
+        return false
+    }
+
     private fun runPrivilegedCommand(command: String, binder: IBinder): Boolean {
         return try {
             // Obtain parcel for Thor's IPC mechanism (AIDL-backed ShellExecutor proxy)

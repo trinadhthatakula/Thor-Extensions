@@ -3,6 +3,9 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:hasCode="true"
@@ -22,6 +25,16 @@
             android:name=".provider.AntivirusConfigProvider"
             android:authorities="com.valhalla.thor.ext.antivirus.configprovider"
             android:exported="true" />
+
+        <!-- Background security scanning service -->
+        <service
+            android:name=".AntivirusScanService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="On-device virus/security file scanning" />
+        </service>
 
         <!-- Configuration UI, launched by Thor via the CONFIGURE action. Runs in THIS app's own
              process (own Compose/Asgard) so no runtime types cross into Thor. Must be exported for
