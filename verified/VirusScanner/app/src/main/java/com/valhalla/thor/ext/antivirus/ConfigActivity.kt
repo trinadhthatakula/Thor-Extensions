@@ -139,11 +139,32 @@ private fun ShieldConfigSheet(
 
     val privilegedManager = remember { PrivilegedActionManager(context) }
 
+    val pickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (!uris.isNullOrEmpty()) {
+            val filtered = uris.filter { uri ->
+                val name = getFileName(context, uri).lowercase()
+                name.endsWith(".apk") || name.endsWith(".apks") || name.endsWith(".apkm") || 
+                name.endsWith(".apkp") || name.endsWith(".xapk") || name.endsWith(".zip")
+            }
+            if (filtered.isNotEmpty()) {
+                AntivirusScanManager.startScan(context, selectedTab, filtered)
+            } else {
+                Toast.makeText(context, "No supported file formats chosen (.apk, .apks, .apkm, .apkp, .xapk, .zip).", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            AntivirusScanManager.startScan(context, selectedTab)
+            if (selectedTab == 1) {
+                pickerLauncher.launch(arrayOf("*/*"))
+            } else {
+                AntivirusScanManager.startScan(context, selectedTab)
+            }
         } else {
             Toast.makeText(context, "Notification permission is required for background scanning progress.", Toast.LENGTH_LONG).show()
         }
@@ -156,12 +177,20 @@ private fun ShieldConfigSheet(
             
             val granted = privilegedManager.executePrivilegedGrant(context.packageName, "android.permission.POST_NOTIFICATIONS", executorBinder)
             if (granted) {
-                AntivirusScanManager.startScan(context, selectedTab)
+                if (selectedTab == 1) {
+                    pickerLauncher.launch(arrayOf("*/*"))
+                } else {
+                    AntivirusScanManager.startScan(context, selectedTab)
+                }
             } else {
                 permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
             }
         } else {
-            AntivirusScanManager.startScan(context, selectedTab)
+            if (selectedTab == 1) {
+                pickerLauncher.launch(arrayOf("*/*"))
+            } else {
+                AntivirusScanManager.startScan(context, selectedTab)
+            }
         }
     }
 
@@ -448,4 +477,33 @@ private fun ShieldConfigSheet(
             }
         )
     }
+}
+
+private fun getFileName(context: Context, uri: android.net.Uri): String {
+    var result = "temp.apk"
+    try {
+        if (uri.scheme == "content") {
+            val cursor = context.contentResolver.query(uri, null, null, null, null)
+            try {
+                if (cursor != null && cursor.moveToFirst()) {
+                    val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (index != -1) {
+                        result = cursor.getString(index)
+                    }
+                }
+            } finally {
+                cursor?.close()
+            }
+        }
+        if (result == "temp.apk") {
+            val path = uri.path
+            val cut = path?.lastIndexOf('/')
+            if (cut != null && cut != -1) {
+                result = path.substring(cut + 1)
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+    return result
 }

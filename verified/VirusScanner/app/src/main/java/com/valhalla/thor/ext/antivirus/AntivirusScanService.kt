@@ -20,6 +20,7 @@ class AntivirusScanService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val scanType = intent?.getIntExtra("scan_type", 0) ?: 0
+        val pickedUris = intent?.getParcelableArrayListExtra<android.net.Uri>("uris")
 
         // Start as foreground immediately
         val initialNotification = buildNotification("Preparing scan...", 0, 0)
@@ -29,6 +30,7 @@ class AntivirusScanService : Service() {
         AntivirusScanManager.performScanLoop(
             context = this,
             scanType = scanType,
+            pickedUris = pickedUris,
             onProgress = {
                 val currentPkg = AntivirusScanManager.currentScannedPackage.value
                 val scanned = AntivirusScanManager.scannedCount.value
