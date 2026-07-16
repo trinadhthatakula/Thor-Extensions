@@ -57,6 +57,12 @@ object AntivirusScanManager {
         context.stopService(Intent(context, AntivirusScanService::class.java))
     }
 
+    fun decrementThreatCount() {
+        if (_threatCount.value > 0) {
+            _threatCount.value--
+        }
+    }
+
     fun performScanLoop(context: Context, scanType: Int, onProgress: () -> Unit, onFinished: () -> Unit) {
         scanJob?.cancel()
         scanJob = managerScope.launch {

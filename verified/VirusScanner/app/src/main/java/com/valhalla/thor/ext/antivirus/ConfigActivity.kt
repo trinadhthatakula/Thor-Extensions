@@ -424,7 +424,7 @@ private fun ShieldConfigSheet(
                     val success = privilegedManager.executeUninstall(finding.packageName, executorBinder)
                     if (success) {
                         scanResults.remove(finding)
-                        if (threatCount > 0) threatCount--
+                        AntivirusScanManager.decrementThreatCount()
                         selectedFinding = null
                     }
                 }) {
