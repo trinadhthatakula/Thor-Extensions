@@ -87,8 +87,10 @@ Update), so it must increase on every release. A `verified: false` / empty-`apkU
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). In short: build against `thor-extension-api` `compileOnly`,
 ship your config UI as your **own** launched Activity (not inside Thor's process), start your
-package id with `com.valhalla.thor.ext.`, and — for a `verified/` listing — add a catalog stub and
-open a PR. The starter is [`thor-extension-template`](https://github.com/trinadhthatakula/thor-extension-template).
+package id with `com.valhalla.thor.ext.`, and open a PR adding your source under `unverified/<name>/`.
+Every PR is reviewed by AI agents **and** the maintainer; promotion to `verified/` happens after that
+review and is the maintainer's to do — you can't self-sign into it. The starter is
+[`thor-extension-template`](https://github.com/trinadhthatakula/thor-extension-template).
 
 ## License
 
