@@ -147,6 +147,6 @@ just package visibility (declare `<queries><package android:name="com.valhalla.t
 - [ ] config UI in your own exported `ConfigActivity` (CONFIGURE intent-filter), not in Thor
 - [ ] `android.enableR8.fullMode=false`
 - [ ] a LICENSE in your folder
-- [ ] PR opened against `unverified/<name>/`
+- [ ] PR adds the extension source under `unverified/<name>/`
 
 The catalog entry isn't on this list — the maintainer writes it during promotion (§3).
