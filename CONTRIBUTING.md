@@ -60,14 +60,26 @@ args). Thor passes its theme as optional extras (`ThorExtensionContract.EXTRA_TH
 
 ## 3. Submit
 
-**Source-only (`unverified/`).** Open a PR adding your extension's source under `unverified/<name>/`.
-Because it isn't signed by the project's trust anchor, it loads only on **debug / self-built** Thor —
-users build it themselves. This is the path for third-party authors.
+**There is one entry point: `unverified/`.** Open a PR adding your extension's source under
+`unverified/<name>/`, with a `LICENSE` in your folder. You don't need to ask first, and you don't
+propose yourself into `verified/` — that isn't a tier you can submit to.
 
-**Verified (`verified/`).** Verified extensions are built and signed by the maintainer with the
-dedicated **"Thor Extensions"** key and listed in the catalog; you can't self-sign into `verified/`.
-To propose one, open a PR with the source under `verified/<name>/` **and a catalog stub** — CI
-**hard-fails** a release for a `verified/` extension that has no catalog entry:
+**Every PR is reviewed twice:** by AI review agents, and by the maintainer. Both have to be satisfied
+before it's merged.
+
+While it sits in `unverified/` it isn't signed by the project's trust anchor, so it loads only on
+**debug / self-built** Thor — users build it themselves.
+
+### Promotion to `verified/`
+
+Promotion is the maintainer's to do. Once a submission has been reviewed and accepted, the maintainer
+moves it to `verified/`, builds it, signs it with the dedicated **"Thor Extensions"** key, and adds
+its catalog entry — at which point it appears in Thor's in-app store and loads on stock Thor.
+
+**Nothing can be self-signed into `verified/`.** That is the entire meaning of the badge, and the
+release pipeline enforces it mechanically (see §4).
+
+For reference, the catalog entry the maintainer creates looks like this:
 
 ```json
 {
@@ -84,11 +96,14 @@ To propose one, open a PR with the source under `verified/<name>/` **and a catal
 }
 ```
 
-Fill every field **except** `version` / `versionCode` / `apkUrl` / `sha256` (CI writes those on
-release from your `app/build.gradle.kts`, matching on `sourcePath`). `versionCode` drives the store's
-**update detection**, so it must increase on every release you want users to be offered.
+Every field is filled **except** `version` / `versionCode` / `apkUrl` / `sha256`, which CI writes on
+release from the extension's `app/build.gradle.kts`, matching on `sourcePath`. `versionCode` drives
+the store's **update detection**, so it must increase on every release users should be offered. CI
+**hard-fails** a release for a `verified/` extension with no catalog entry.
 
-## 4. Releasing (verified extensions)
+## 4. Releasing (verified extensions — maintainer)
+
+This section describes what happens after promotion; it isn't something a contributor does.
 
 CI releases automatically when a `verified/*` extension's `versionName` (in `app/build.gradle.kts`)
 is bumped and merged to `main`. **Bump `versionCode` in the same commit** — the release is *triggered*
@@ -132,4 +147,6 @@ just package visibility (declare `<queries><package android:name="com.valhalla.t
 - [ ] config UI in your own exported `ConfigActivity` (CONFIGURE intent-filter), not in Thor
 - [ ] `android.enableR8.fullMode=false`
 - [ ] a LICENSE in your folder
-- [ ] (verified only) a catalog stub in `catalog/extensions.json`
+- [ ] PR adds the extension source under `unverified/<name>/`
+
+The catalog entry isn't on this list — the maintainer writes it during promotion (§3).

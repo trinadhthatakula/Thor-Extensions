@@ -77,18 +77,21 @@ Schema v1 — one object per extension:
 }
 ```
 
-You hand-author every field **except** `version`, `versionCode`, `apkUrl`, and `sha256` — CI fills
-those on release from the extension's `app/build.gradle.kts` (matched by `sourcePath`). `versionCode`
-drives the store's update detection (an installed copy with a lower `versionCode` is offered an
-Update), so it must increase on every release. A `verified: false` / empty-`apkUrl` entry is shown as
-*source-only, build it yourself*.
+The maintainer writes this entry during promotion — it isn't a contributor task (see
+[CONTRIBUTING.md](CONTRIBUTING.md) §3). Every field is hand-authored **except** `version`,
+`versionCode`, `apkUrl`, and `sha256`, which CI fills on release from the extension's
+`app/build.gradle.kts` (matched by `sourcePath`). `versionCode` drives the store's update detection
+(an installed copy with a lower `versionCode` is offered an Update), so it must increase on every
+release. A `verified: false` / empty-`apkUrl` entry is shown as *source-only, build it yourself*.
 
 ## Building & contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). In short: build against `thor-extension-api` `compileOnly`,
 ship your config UI as your **own** launched Activity (not inside Thor's process), start your
-package id with `com.valhalla.thor.ext.`, and — for a `verified/` listing — add a catalog stub and
-open a PR. The starter is [`thor-extension-template`](https://github.com/trinadhthatakula/thor-extension-template).
+package id with `com.valhalla.thor.ext.`, and open a PR adding your source under `unverified/<name>/`.
+Every PR is reviewed by AI agents **and** the maintainer; promotion to `verified/` happens after that
+review and is the maintainer's to do — you can't self-sign into it. The starter is
+[`thor-extension-template`](https://github.com/trinadhthatakula/thor-extension-template).
 
 ## License
 
