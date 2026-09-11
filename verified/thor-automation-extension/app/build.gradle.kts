@@ -90,7 +90,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.kotlinx.serialization.json)
-    implementation("io.coil-kt.coil3:coil-compose:3.5.0")
+    implementation("io.coil-kt.coil3:coil-compose:3.6.2")
 
     // Thor extension contract. compileOnly: only AutomationCluster (loaded into Thor's process)
     // references it, and parent-first classloading resolves it to Thor's copy — so it must NOT be
