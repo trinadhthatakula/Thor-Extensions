@@ -2,17 +2,17 @@
 compileSdk = "37"
 targetSdk = "37"
 minSdk = "28"
-agp = "9.4.0-alpha06"
-kotlin = "2.4.10"
-coreKtx = "1.19.0"
+agp = "9.5.0-alpha09"
+kotlin = "2.4.21"
+coreKtx = "1.19.1"
 activityCompose = "1.13.0"
-composeBom = "2026.06.01"
-material3 = "1.5.0-alpha22"
+composeBom = "2026.09.00"
+material3 = "1.5.0-beta01"
 materialIcons = "1.7.8"
 lifecycleRuntimeKtx = "2.11.0"
 kotlinxSerializationJson = "1.11.0"
 thorExtensionApi = "3.0.0"
-asgardUi = "2.0.0"
+asgardUi = "2.0.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
